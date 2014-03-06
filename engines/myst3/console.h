@@ -54,6 +54,7 @@ private:
 	bool Cmd_DumpArchive(int argc, const char **argv);
 	bool Cmd_DumpMasks(int argc, const char **argv);
 	bool Cmd_FillInventory(int argc, const char **argv);
+	bool Cmd_FindOpcode(int argc, const char **argv);
 };
 
 } /* namespace Myst3 */

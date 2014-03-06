@@ -522,6 +522,48 @@ uint32 Database::getAgeLabelId(uint32 ageID) {
 	return 0;
 }
 
+Common::HashMap<Common::String, NodePtr> Database::findOpcode(uint8 op) {
+	Common::HashMap<Common::String, NodePtr> results;
+
+	for (uint i = 0; i < _ages.size(); i++) {
+		for (uint j = 0; j < _ages[i].rooms.size(); j++) {
+			Common::Array<NodePtr> nodes = loadRoomScripts(&_ages[i].rooms[j]);
+			for (uint k = 0; k < nodes.size(); k++) {
+				NodePtr node = nodes[k];
+
+				for (uint l = 0; l < node->scripts.size(); l++) {
+					if (scriptHasOpcode(node->scripts[l], op)) {
+						results[Common::String::format("%s %d", _ages[i].rooms[j].name, node->id)] = node;
+					}
+				}
+
+				for (uint l = 0; l < node->backgroundSoundScripts.size(); l++) {
+					if (scriptHasOpcode(node->backgroundSoundScripts[l], op)) {
+						results[Common::String::format("%s %d", _ages[i].rooms[j].name, node->id)] = node;
+					}
+				}
+
+				for (uint l = 0; l < node->soundScripts.size(); l++) {
+					if (scriptHasOpcode(node->soundScripts[l], op)) {
+						results[Common::String::format("%s %d", _ages[i].rooms[j].name, node->id)] = node;
+					}
+				}
+			}
+		}
+	}
+
+	return results;
+}
+
+bool Database::scriptHasOpcode(const CondScript &script, uint8 op) {
+	for (uint i = 0; i < script.script.size(); i++) {
+		if (script.script[i].op == op)
+			return true;
+	}
+
+	return false;
+}
+
 Common::SeekableSubReadStreamEndian *Database::openDatabaseFile() const {
 	assert(_executableVersion);
 

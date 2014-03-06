@@ -136,6 +136,8 @@ public:
 	 * Retrieve an ambient cue from its id
 	 */
 	const AmbientCue& getAmbientCue(uint16 id);
+
+	Common::HashMap<Common::String, NodePtr> findOpcode(uint8 op);
 private:
 	Myst3Engine *_vm;
 	const ExecutableVersion *_executableVersion;
@@ -176,6 +178,8 @@ private:
 
 	static uint32 safeDiscDecode1(uint32 data);
 	static uint32 safeDiscDecode2(uint32 data);
+
+	bool scriptHasOpcode(const CondScript &script, uint8 op);
 };
 
 #ifdef USE_SAFEDISC

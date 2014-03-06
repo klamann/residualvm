@@ -41,6 +41,7 @@ Console::Console(Myst3Engine *vm) : GUI::Debugger(), _vm(vm) {
 	DCmd_Register("fillInventory",		WRAP_METHOD(Console, Cmd_FillInventory));
 	DCmd_Register("dumpArchive",		WRAP_METHOD(Console, Cmd_DumpArchive));
 	DCmd_Register("dumpMasks",			WRAP_METHOD(Console, Cmd_DumpMasks));
+	DCmd_Register("findOpcode",			WRAP_METHOD(Console, Cmd_FindOpcode));
 }
 
 Console::~Console() {
@@ -170,6 +171,24 @@ bool Console::Cmd_Var(int argc, const char **argv) {
 	}
 
 	DebugPrintf("%s: %d\n", _vm->_state->describeVar(var).c_str(), value);
+
+	return true;
+}
+
+bool Console::Cmd_FindOpcode(int argc, const char **argv) {
+
+	if (argc != 2) {
+		DebugPrintf("Usage :\n");
+		DebugPrintf("findOpcode opcode : Display opcode usage\n");
+		return true;
+	}
+
+	uint16 op = atoi(argv[1]);
+	Common::HashMap<Common::String, NodePtr> nodes = _vm->_db->findOpcode(op);
+
+	for (Common::HashMap<Common::String, NodePtr>::const_iterator i = nodes.begin(); i != nodes.end(); i++) {
+		DebugPrintf("%s\n", i->_key.c_str());
+	}
 
 	return true;
 }
