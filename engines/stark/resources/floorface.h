@@ -104,11 +104,12 @@ public:
 	void enable(bool enable);
 	bool isEnabled() const;
 
+	int16 _indices[3];
+
 protected:
 	void readData(Formats::XRCReadStream *stream) override;
 	void printData() override;
 
-	int16 _indices[3];
 	Math::Vector3d _vertices[3];
 
 	Common::Array<FloorEdge *> _edges; // Owned by Floor

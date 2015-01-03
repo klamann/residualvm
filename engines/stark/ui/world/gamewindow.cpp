@@ -45,6 +45,8 @@
 #include "engines/stark/visual/text.h"
 #include "engines/stark/visual/image.h"
 
+#include "engines/stark/scene.h"
+
 namespace Stark {
 
 GameWindow::GameWindow(Gfx::Driver *gfx, Cursor *cursor, ActionMenu *actionMenu, InventoryWindow *inventory) :
@@ -112,6 +114,8 @@ void GameWindow::onRender() {
 	if ((1.0f - fadeLevel) > 0.00001f) {
 		_fadeRenderer->render(fadeLevel);
 	}
+
+	StarkScene->drawFloor();
 }
 
 void GameWindow::onMouseMove(const Common::Point &pos) {

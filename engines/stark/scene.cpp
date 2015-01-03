@@ -29,6 +29,8 @@
 
 #include "math/glmath.h"
 
+#include "graphics/opengl/shader.h" // HACK: I just want to see something
+
 namespace Stark {
 
 Scene::Scene(Gfx::Driver *gfx) :
@@ -39,9 +41,12 @@ Scene::Scene(Gfx::Driver *gfx) :
 		_fadeLevel(1.0),
 		_floatOffset(0.0),
 		_maxShadowLength(0.075f) {
+	static const char* attributes[] = { "pos", nullptr };
+	_shader = OpenGL::Shader::fromFiles("stark_floor", attributes);
 }
 
 Scene::~Scene() {
+	delete _shader;
 }
 
 void Scene::initCamera(const Math::Vector3d &position, const Math::Vector3d &lookDirection,
@@ -167,6 +172,28 @@ void Scene::setFloatOffset(float floatOffset) {
 
 float Scene::getFloatOffset() const {
 	return _floatOffset;
+}
+
+void Scene::drawFloor() {
+	uint32 vbo = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(float) * 3 * _floorVertices.size(), &_floorVertices[0]);
+	uint32 ebo = OpenGL::Shader::createBuffer(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32) * _floorIndices.size(), &_floorIndices[0]);
+
+	Math::Matrix4 mvp = _projectionMatrix * _viewMatrix;
+	mvp.transpose();
+
+	_shader->enableVertexAttribute("pos", vbo, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+	_shader->use(true);
+	_shader->setUniform("mvp", mvp);
+	_shader->setUniform("color", Math::Vector3d(0, 0, 1.0));
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glDrawElements(GL_TRIANGLES, _floorIndices.size(), GL_UNSIGNED_INT, 0);
+
+	glUseProgram(0);
+
+	OpenGL::Shader::freeBuffer(ebo);
+	OpenGL::Shader::freeBuffer(vbo);
 }
 
 } // End of namespace Stark

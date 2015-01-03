@@ -29,6 +29,12 @@
 #include "math/ray.h"
 #include "math/vector3d.h"
 
+#include "engines/stark/model/model.h"
+
+namespace OpenGL {
+class Shader;
+}
+
 namespace Stark {
 
 namespace Gfx {
@@ -43,6 +49,8 @@ class Scene {
 public:
 	Scene(Gfx::Driver *gfx);
 	~Scene();
+
+	void drawFloor();
 
 	void initCamera(const Math::Vector3d &position, const Math::Vector3d &lookAt,
 			float fov, Common::Rect viewSize, float nearClipPlane, float farClipPlane);
@@ -90,6 +98,10 @@ public:
 	/** Access the maximum length of the horizontal light direction for casting shadows */
 	void setMaxShadowLength(float length) { _maxShadowLength = length; }
 	float getMaxShadowLength() const { return _maxShadowLength; }
+
+	Common::Array<Math::Vector3d> _floorVertices;
+	Common::Array<uint32> _floorIndices;
+	OpenGL::Shader *_shader;
 
 private:
 	void computeClippingRect(float *xmin, float *xmax, float *ymin, float *ymax);
