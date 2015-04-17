@@ -25,6 +25,10 @@
 #include "engines/stark/gfx/driver.h"
 #include "engines/stark/gfx/renderentry.h"
 
+#include "engines/stark/services/services.h"
+#include "engines/stark/services/global.h"
+#include "engines/stark/resources/item.h"
+
 #include "common/system.h"
 
 #include "math/glmath.h"
@@ -41,7 +45,7 @@ Scene::Scene(Gfx::Driver *gfx) :
 		_fadeLevel(1.0),
 		_floatOffset(0.0),
 		_maxShadowLength(0.075f) {
-	static const char* attributes[] = { "pos", nullptr };
+	static const char* attributes[] = { "pos", "face", nullptr };
 	_shader = OpenGL::Shader::fromFiles("stark_floor", attributes);
 }
 
@@ -175,24 +179,45 @@ float Scene::getFloatOffset() const {
 }
 
 void Scene::drawFloor() {
-	uint32 vbo = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(float) * 3 * _floorVertices.size(), &_floorVertices[0]);
-	uint32 ebo = OpenGL::Shader::createBuffer(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32) * _floorIndices.size(), &_floorIndices[0]);
+	struct Attributes {
+		Math::Vector3d pos;
+		float face;
+	};
+
+	Attributes *attributes = new Attributes[_floorIndices.size()];
+	for (uint i = 0; i < _floorIndices.size(); i++) {
+			attributes[i].pos = _floorVertices[_floorIndices[i]];
+			attributes[i].face = i / 3;
+	}
+
+	uint32 vbo = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(float) * 4 * _floorIndices.size(), &attributes[0]);
+	delete[] attributes;
 
 	Math::Matrix4 mvp = _projectionMatrix * _viewMatrix;
 	mvp.transpose();
 
-	_shader->enableVertexAttribute("pos", vbo, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+	int32 aprilFace = -1;
+
+	Global *global = StarkServices::instance().global;
+	Resources::GlobalItemTemplate *april = global->getApril();
+	if (april) {
+		Resources::ModelItem *a2 = Resources::Object::cast<Resources::ModelItem>(april->getSceneInstance());
+		aprilFace = a2->getFloorFaceIndex();
+	}
+
+	_shader->enableVertexAttribute("pos", vbo, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+	_shader->enableVertexAttribute("face", vbo, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 3 * sizeof(float));
 	_shader->use(true);
 	_shader->setUniform("mvp", mvp);
+	_shader->setUniform("aprilFace", aprilFace);
 	_shader->setUniform("color", Math::Vector3d(0, 0, 1.0));
+	_shader->setUniform("aprilColor", Math::Vector3d(0, 1.0, 0));
 
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glDrawElements(GL_TRIANGLES, _floorIndices.size(), GL_UNSIGNED_INT, 0);
+	glDrawArrays(GL_TRIANGLES, 0, _floorIndices.size());
 
 	glUseProgram(0);
 
-	OpenGL::Shader::freeBuffer(ebo);
 	OpenGL::Shader::freeBuffer(vbo);
 }
 
