@@ -40,6 +40,8 @@ namespace Stark {
 class ResourceReference {
 public:
 	ResourceReference();
+	explicit ResourceReference(Resources::Object *resource);
+	explicit ResourceReference(const Common::String &string);
 
 	Common::String describe() const;
 
@@ -62,6 +64,7 @@ public:
 	/** Can this reference be resolved using currently loaded archives? */
 	bool canResolve() const;
 private:
+	void buildFromString(const Common::String &refString);
 	void addPathElement(Resources::Type type, uint16 index);
 	Resources::Object *resolve() const;
 

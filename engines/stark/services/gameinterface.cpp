@@ -37,6 +37,8 @@
 #include "engines/stark/services/global.h"
 #include "engines/stark/services/services.h"
 
+#include "engines/stark/tests/actionlog.h"
+
 #include "engines/stark/visual/image.h"
 
 #include "engines/stark/scene.h"
@@ -99,8 +101,20 @@ void GameInterface::walkTo(const Common::Point &mouse) {
 		return;
 	}
 
+	walkTo(destinationPosition);
+}
+
+void GameInterface::walkTo(const Math::Vector3d &destination) {
+	Resources::Floor *floor = StarkGlobal->getCurrent()->getFloor();
+	Resources::ModelItem *april = StarkGlobal->getCurrent()->getInteractive();
+	if (!floor || !april) {
+		return;
+	}
+
+	StarkActionLogger->addAction(new Tests::WalkToAction(destination));
+
 	Walk *walk = new Walk(april);
-	walk->setDestination(destinationPosition);
+	walk->setDestination(destination);
 	walk->start();
 
 	april->setMovement(walk);
@@ -158,10 +172,14 @@ int32 GameInterface::itemGetDefaultActionAt(Resources::ItemVisual *item, const C
 }
 
 void GameInterface::itemDoAction(Resources::ItemVisual *item, uint32 action) {
+	StarkActionLogger->addAction(new Tests::DoAction(ResourceReference(item), action));
+
 	item->doAction(action, 0);
 }
 
 void GameInterface::itemDoActionAt(Resources::ItemVisual *item, uint32 action, const Common::Point &position) {
+	StarkActionLogger->addAction(new Tests::DoActionAt(ResourceReference(item), action, position));
+
 	int32 hotspotIndex = item->getHotspotIndexForPoint(position);
 	item->doAction(action, hotspotIndex);
 }

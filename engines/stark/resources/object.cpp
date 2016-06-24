@@ -32,6 +32,48 @@
 namespace Stark {
 namespace Resources {
 
+static const struct {
+	Type::ResourceType type;
+	const char *name;
+} typeNames[] = {
+		{ Type::kInvalid,                "Invalid"                },
+		{ Type::kRoot,                   "Root"                   },
+		{ Type::kLevel,                  "Level"                  },
+		{ Type::kLocation,               "Location"               },
+		{ Type::kLayer,                  "Layer"                  },
+		{ Type::kCamera,                 "Camera"                 },
+		{ Type::kFloor,                  "Floor"                  },
+		{ Type::kFloorFace,              "FloorFace"              },
+		{ Type::kItem,                   "Item"                   },
+		{ Type::kScript,                 "Script"                 },
+		{ Type::kAnimHierarchy,          "AnimHierarchy"          },
+		{ Type::kAnim,                   "Anim"                   },
+		{ Type::kDirection,              "Direction"              },
+		{ Type::kImage,                  "Image"                  },
+		{ Type::kAnimScript,             "AnimScript"             },
+		{ Type::kAnimScriptItem,         "AnimScriptItem"         },
+		{ Type::kSoundItem,              "SoundItem"              },
+		{ Type::kPath,                   "Path"                   },
+		{ Type::kFloorField,             "FloorField"             },
+		{ Type::kBookmark,               "Bookmark"               },
+		{ Type::kKnowledgeSet,           "KnowledgeSet"           },
+		{ Type::kKnowledge,              "Knowledge"              },
+		{ Type::kCommand,                "Command"                },
+		{ Type::kPATTable,               "PATTable"               },
+		{ Type::kContainer,              "Container"              },
+		{ Type::kDialog,                 "Dialog"                 },
+		{ Type::kSpeech,                 "Speech"                 },
+		{ Type::kLight,                  "Light"                  },
+		{ Type::kCursor,                 "Cursor"                 },
+		{ Type::kBonesMesh,              "BonesMesh"              },
+		{ Type::kScroll,                 "Scroll"                 },
+		{ Type::kFMV,                    "FMV"                    },
+		{ Type::kLipSync,                "LipSynch"               },
+		{ Type::kAnimSoundTrigger,       "AnimSoundTrigger"       },
+		{ Type::kString,                 "String"                 },
+		{ Type::kTextureSet,             "TextureSet"             }
+};
+
 Type::Type(ResourceType type) {
 	_type = type;
 }
@@ -40,49 +82,18 @@ Type::Type() {
 	_type = kInvalid;
 }
 
-const char *Type::getName() const {
-	static const struct {
-		Type::ResourceType type;
-		const char *name;
-	} typeNames[] = {
-			{ Type::kInvalid,                "Invalid"                },
-			{ Type::kRoot,                   "Root"                   },
-			{ Type::kLevel,                  "Level"                  },
-			{ Type::kLocation,               "Location"               },
-			{ Type::kLayer,                  "Layer"                  },
-			{ Type::kCamera,                 "Camera"                 },
-			{ Type::kFloor,                  "Floor"                  },
-			{ Type::kFloorFace,              "FloorFace"              },
-			{ Type::kItem,                   "Item"                   },
-			{ Type::kScript,                 "Script"                 },
-			{ Type::kAnimHierarchy,          "AnimHierarchy"          },
-			{ Type::kAnim,                   "Anim"                   },
-			{ Type::kDirection,              "Direction"              },
-			{ Type::kImage,                  "Image"                  },
-			{ Type::kAnimScript,             "AnimScript"             },
-			{ Type::kAnimScriptItem,         "AnimScriptItem"         },
-			{ Type::kSoundItem,              "SoundItem"              },
-			{ Type::kPath,                   "Path"                   },
-			{ Type::kFloorField,             "FloorField"             },
-			{ Type::kBookmark,               "Bookmark"               },
-			{ Type::kKnowledgeSet,           "KnowledgeSet"           },
-			{ Type::kKnowledge,              "Knowledge"              },
-			{ Type::kCommand,                "Command"                },
-			{ Type::kPATTable,               "PATTable"               },
-			{ Type::kContainer,              "Container"              },
-			{ Type::kDialog,                 "Dialog"                 },
-			{ Type::kSpeech,                 "Speech"                 },
-			{ Type::kLight,                  "Light"                  },
-			{ Type::kCursor,                 "Cursor"                 },
-			{ Type::kBonesMesh,              "BonesMesh"              },
-			{ Type::kScroll,                 "Scroll"                 },
-			{ Type::kFMV,                    "FMV"                    },
-			{ Type::kLipSync,                "LipSynch"               },
-			{ Type::kAnimSoundTrigger,       "AnimSoundTrigger"       },
-			{ Type::kString,                 "String"                 },
-			{ Type::kTextureSet,             "TextureSet"             }
-	};
+Type::Type(const Common::String &typeName) {
+	_type = kInvalid;
 
+	for (uint i = 0; i < ARRAYSIZE(typeNames); i++) {
+		if (strcmp(typeNames[i].name, typeName.c_str()) == 0) {
+			_type = typeNames[i].type;
+			break;
+		}
+	}
+}
+
+const char *Type::getName() const {
 	for (uint i = 0; i < ARRAYSIZE(typeNames); i++) {
 		if (typeNames[i].type == _type) {
 			return typeNames[i].name;

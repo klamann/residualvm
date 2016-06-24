@@ -30,6 +30,8 @@
 #include "engines/stark/services/staticprovider.h"
 #include "engines/stark/services/services.h"
 
+#include "common/tokenizer.h"
+
 namespace Stark {
 
 
@@ -42,6 +44,14 @@ Common::String ResourceReference::PathElement::describe() const {
 }
 
 ResourceReference::ResourceReference() {
+}
+
+ResourceReference::ResourceReference(Resources::Object *resource) {
+	buildFromResource(resource);
+}
+
+ResourceReference::ResourceReference(const Common::String &string) {
+	buildFromString(string);
 }
 
 void ResourceReference::addPathElement(Resources::Type type, uint16 index) {
@@ -178,6 +188,42 @@ void ResourceReference::buildFromResource(Resources::Object *resource) {
 	_path.clear();
 	for (int i = reversePath.size() - 1; i >= 0; i--) {
 		_path.push_back(reversePath[i]);
+	}
+}
+
+void ResourceReference::buildFromString(const Common::String &refString) {
+	_path.clear();
+
+	// Example string to parse:
+	// (Level idx 8) (Location idx 2) (Layer idx 1) (Item idx 0)
+
+	Common::StringTokenizer tokens(refString, "() ");
+
+	while (1) {
+		Common::String typeStr = tokens.nextToken();
+		Common::String idx = tokens.nextToken();
+		Common::String indexStr = tokens.nextToken();
+
+		if (typeStr.empty() || idx.empty() || indexStr.empty()) {
+			break;
+		}
+
+		if (idx != "idx") {
+			error("Unexpected format when parsing a resource reference string: '%s'", refString.c_str());
+		}
+
+		Resources::Type type = Resources::Type(typeStr);
+		if (type == Resources::Type::kInvalid) {
+			error("Unexpected format when parsing a resource reference string: '%s'", refString.c_str());
+		}
+
+		char *end = nullptr;
+		uint16 index = strtol(indexStr.c_str(), &end, 10);
+		if (*end) {
+			error("Unexpected format when parsing a resource reference string: '%s'", refString.c_str());
+		}
+
+		addPathElement(type, index);
 	}
 }
 

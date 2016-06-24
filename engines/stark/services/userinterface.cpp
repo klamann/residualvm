@@ -222,11 +222,6 @@ void UserInterface::performQuitToMainMenu() {
 	_quitToMainMenu = false;
 }
 
-void UserInterface::restoreScreenHistory() {
-	_prevScreenNameStack.clear();
-	_prevScreenNameStack.push(Screen::kScreenMainMenu);
-}
-
 Screen *UserInterface::getScreenByName(Screen::Name screenName) const {
 	switch (screenName) {
 		case Screen::kScreenFMV:
@@ -457,6 +452,14 @@ void UserInterface::selectDialogOptionByIndex(uint index) {
 
 void UserInterface::toggleExitDisplay() {
 	_gameScreen->getGameWindow()->toggleExitDisplay();
+}
+
+void UserInterface::goToGameScreen() {
+	skipFMV();
+	clearLocationDependentState();
+	setInteractive(true);
+	_prevScreenNameStack.clear();
+	changeScreen(Screen::kScreenGame);
 }
 
 } // End of namespace Stark

@@ -27,6 +27,7 @@
 
 #include "common/scummsys.h"
 #include "common/rect.h"
+#include "math/vector3d.h"
 
 namespace Stark {
 
@@ -34,6 +35,10 @@ class VisualImageXMG;
 
 namespace Resources {
 class ItemVisual;
+}
+
+namespace Tests {
+class ActionLog;
 }
 
 /**
@@ -53,6 +58,7 @@ public:
 
 	/** Make April try to go to the location under the cursor */
 	void walkTo(const Common::Point &mouse);
+	void walkTo(const Math::Vector3d &destination);
 
 	VisualImageXMG *getActionImage(uint32 itemIndex, bool active);
 	VisualImageXMG *getCursorImage(uint32 itemIndex);

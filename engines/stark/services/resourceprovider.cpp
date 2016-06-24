@@ -40,6 +40,8 @@
 #include "engines/stark/services/stateprovider.h"
 #include "engines/stark/services/userinterface.h"
 
+#include "engines/stark/tests/actionlog.h"
+
 namespace Stark {
 
 ResourceProvider::ResourceProvider(ArchiveLoader *archiveLoader, StateProvider *stateProvider, Global *global) :
@@ -256,6 +258,10 @@ void ResourceProvider::performLocationChange() {
 	purgeOldLocations();
 
 	_locationChangeRequest = false;
+
+	StarkActionLogger->addAction(new Tests::AssertLocation(
+			current->getLevel()->getIndex(), current->getLocation()->getIndex()
+	));
 }
 
 void ResourceProvider::runLocationChangeScripts(Resources::Object *resource, uint32 scriptCallMode) {

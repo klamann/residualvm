@@ -45,6 +45,8 @@
 #include "engines/stark/services/userinterface.h"
 #include "engines/stark/services/settings.h"
 
+#include "engines/stark/tests/actionlog.h"
+
 namespace Stark {
 namespace Resources {
 
@@ -591,6 +593,7 @@ void InventoryItem::setEnabled(bool enabled) {
 	if (inventory) {
 		if (enabled) {
 			inventory->addItem(this);
+			StarkActionLogger->addAction(new Tests::AssertHasInventoryItem(getName()));
 		} else {
 			inventory->removeItem(this);
 		}

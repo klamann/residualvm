@@ -78,6 +78,7 @@ public:
 
 	Type();
 	Type(ResourceType type);
+	explicit Type(const Common::String &typeName);
 
 	ResourceType get() const;
 	const char *getName() const;

@@ -38,6 +38,10 @@ class Driver;
 class FrameLimiter;
 }
 
+namespace Tests {
+class ActionLogger;
+}
+
 class ArchiveLoader;
 class Console;
 class DialogPlayer;
@@ -95,6 +99,7 @@ private:
 	Settings *_settings;
 	GameChapter *_gameChapter;
 	GameMessage *_gameMessage;
+	Tests::ActionLogger *_actionLogger;
 
 	Common::RandomSource *_randomSource;
 

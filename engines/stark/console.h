@@ -58,6 +58,11 @@ private:
 	bool Cmd_ChangeLocation(int argc, const char **argv);
 	bool Cmd_ChangeChapter(int argc, const char **argv);
 	bool Cmd_ChangeKnowledge(int argc, const char **argv);
+	bool Cmd_StartRecording(int argc, const char **argv);
+	bool Cmd_StopRecording(int argc, const char **argv);
+	bool Cmd_PrintActionLog(int argc, const char **argv);
+	bool Cmd_RunTest(int argc, const char **argv);
+	bool Cmd_RecordTest(int argc, const char **argv);
 
 	Common::Array<Resources::Script *> listAllLocationScripts() const;
 	void decompileScriptChildren(Stark::Resources::Object *level);

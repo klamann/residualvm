@@ -42,6 +42,7 @@
 #include "engines/stark/services/settings.h"
 #include "engines/stark/services/gamechapter.h"
 #include "engines/stark/services/gamemessage.h"
+#include "engines/stark/tests/actionlog.h"
 #include "engines/stark/gfx/driver.h"
 #include "engines/stark/gfx/framelimiter.h"
 
@@ -76,6 +77,7 @@ StarkEngine::StarkEngine(OSystem *syst, const ADGameDescription *gameDesc) :
 		_settings(nullptr),
 		_gameChapter(nullptr),
 		_gameMessage(nullptr),
+		_actionLogger(nullptr),
 		_lastClickTime(0) {
 	// Add the available debug channels
 	DebugMan.addDebugChannel(kDebugArchive, "Archive", "Debug the archive loading");
@@ -103,6 +105,7 @@ StarkEngine::~StarkEngine() {
 	delete _settings;
 	delete _gameChapter;
 	delete _gameMessage;
+	delete _actionLogger;
 
 	StarkServices::destroy();
 }
@@ -130,6 +133,7 @@ Common::Error StarkEngine::run() {
 	_settings = new Settings(_mixer, _gameDescription);
 	_gameChapter = new GameChapter();
 	_gameMessage = new GameMessage();
+	_actionLogger = new Tests::ActionLogger();
 
 	// Setup the public services
 	StarkServices &services = StarkServices::instance();
@@ -148,6 +152,7 @@ Common::Error StarkEngine::run() {
 	services.settings = _settings;
 	services.gameChapter = _gameChapter;
 	services.gameMessage = _gameMessage;
+	services.actionLogger = _actionLogger;
 
 	// Load global resources
 	_staticProvider->init();
@@ -191,6 +196,8 @@ void StarkEngine::mainLoop() {
 		}
 
 		updateDisplayScene();
+
+		_actionLogger->update();
 
 		// Swap buffers
 		_frameLimiter->delayBeforeSwap();
@@ -410,11 +417,7 @@ Common::Error StarkEngine::loadGameState(int slot) {
 	}
 
 	// Reset the UI
-	_userInterface->skipFMV();
-	_userInterface->clearLocationDependentState();
-	_userInterface->setInteractive(true);
-	_userInterface->changeScreen(Screen::kScreenGame);
-	_userInterface->restoreScreenHistory();
+	_userInterface->goToGameScreen();
 
 	// Clear the previous world resources
 	_resourceProvider->shutdown();

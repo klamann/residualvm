@@ -103,9 +103,6 @@ public:
 	bool hasQuitToMainMenuRequest() { return _quitToMainMenu; }
 	void performQuitToMainMenu();
 
-	/** Restore the screen travelling history to the initial state*/
-	void restoreScreenHistory();
-
 	/** Is the game screen currently displayed? */
 	bool isInGameScreen() const;
 
@@ -165,6 +162,9 @@ public:
 
 	/** Directly open or close a screen */
 	void toggleScreen(Screen::Name screenName);
+
+	/** Switch to the game screen, clearing all the UI state along the way */
+	void goToGameScreen();
 
 	/** Toggle subtitles on and off */
 	void requestToggleSubtitle() { _shouldToggleSubtitle = !_shouldToggleSubtitle; }

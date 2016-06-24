@@ -83,6 +83,9 @@ MODULE_OBJS := \
 	services/gamechapter.o \
 	services/gamemessage.o \
 	stark.o \
+	tests/actionlog.o \
+	tests/prologue.o \
+	tests/test.o \
 	tools/abstractsyntaxtree.o \
 	tools/block.o \
 	tools/command.o \

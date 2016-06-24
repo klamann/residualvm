@@ -36,6 +36,10 @@ namespace Gfx {
 class Driver;
 }
 
+namespace Tests {
+class ActionLogger;
+}
+
 class ArchiveLoader;
 class DialogPlayer;
 class Diary;
@@ -71,6 +75,7 @@ public:
 		settings = nullptr;
 		gameChapter = nullptr;
 		gameMessage = nullptr;
+		actionLogger = nullptr;
 	}
 
 	ArchiveLoader *archiveLoader;
@@ -88,6 +93,7 @@ public:
 	Settings *settings;
 	GameChapter *gameChapter;
 	GameMessage *gameMessage;
+	Tests::ActionLogger *actionLogger;
 };
 
 /** Shortcuts for accessing the services. */
@@ -106,6 +112,7 @@ public:
 #define StarkSettings           StarkServices::instance().settings
 #define StarkGameChapter        StarkServices::instance().gameChapter
 #define StarkGameMessage        StarkServices::instance().gameMessage
+#define StarkActionLogger       StarkServices::instance().actionLogger
 
 } // End of namespace Stark
 

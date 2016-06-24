@@ -33,11 +33,14 @@
 #include "engines/stark/resources/item.h"
 #include "engines/stark/services/archiveloader.h"
 #include "engines/stark/services/dialogplayer.h"
+#include "engines/stark/services/gameinterface.h"
 #include "engines/stark/services/global.h"
 #include "engines/stark/services/resourceprovider.h"
 #include "engines/stark/services/userinterface.h"
 #include "engines/stark/services/services.h"
 #include "engines/stark/services/staticprovider.h"
+#include "engines/stark/tests/actionlog.h"
+#include "engines/stark/tests/test.h"
 #include "engines/stark/tools/decompiler.h"
 
 #include <limits.h>
@@ -69,6 +72,11 @@ Console::Console() :
 	registerCmd("changeChapter",        WRAP_METHOD(Console, Cmd_ChangeChapter));
 	registerCmd("changeKnowledge",      WRAP_METHOD(Console, Cmd_ChangeKnowledge));
 	registerCmd("enableInventoryItem",  WRAP_METHOD(Console, Cmd_EnableInventoryItem));
+	registerCmd("recordTest",           WRAP_METHOD(Console, Cmd_RecordTest));
+	registerCmd("printActionLog",       WRAP_METHOD(Console, Cmd_PrintActionLog));
+	registerCmd("startRecording",       WRAP_METHOD(Console, Cmd_StartRecording));
+	registerCmd("stopRecording",        WRAP_METHOD(Console, Cmd_StopRecording));
+	registerCmd("runTest",              WRAP_METHOD(Console, Cmd_RunTest));
 }
 
 Console::~Console() {
@@ -578,7 +586,7 @@ bool Console::Cmd_ChangeLocation(int argc, const char **argv) {
 	uint levelIndex = strtol(argv[1] , nullptr, 16);
 	uint locationIndex = strtol(argv[2] , nullptr, 16);
 
-	StarkUserInterface->changeScreen(Screen::kScreenGame);
+	StarkUserInterface->goToGameScreen();
 
 	if (!StarkGlobal->getRoot()) {
 		StarkResourceProvider->initGlobal();
@@ -651,4 +659,81 @@ bool Console::Cmd_Chapter(int argc, const char **argv) {
 	return true;
 }
 
+bool Console::Cmd_StartRecording(int argc, const char **argv) {
+	StarkActionLogger->startRecording();
+
+	return false;
+}
+
+bool Console::Cmd_StopRecording(int argc, const char **argv) {
+	StarkActionLogger->stop();
+
+	return true;
+}
+
+bool Console::Cmd_PrintActionLog(int argc, const char **argv) {
+	StarkActionLogger->print();
+
+	return true;
+}
+
+bool Console::Cmd_RunTest(int argc, const char **argv) {
+	if (argc != 2) {
+		debugPrintf("Run a gameplay test\n");
+		debugPrintf("Usage :\n");
+		debugPrintf("runTest [name]\n");
+		return true;
+	}
+
+	Tests::ActionLogTest *test = Tests::makeTestByName(argv[1]);
+	if (!test) {
+		debugPrintf("'%s' is not a valid test name\n", argv[1]);
+		return true;
+	}
+
+	StarkUserInterface->goToGameScreen();
+
+	// Clear the previous world resources
+	StarkResourceProvider->shutdown();
+	StarkResourceProvider->initGlobal();
+
+	// Generate an action log to play the test
+	test->setUp();
+	test->test();
+	Tests::ActionLog *actionLog = test->takeActionLog();
+
+	StarkActionLogger->startPlayback(actionLog);
+
+	delete test;
+
+	return false;
+}
+
+bool Console::Cmd_RecordTest(int argc, const char **argv) {
+	if (argc != 2) {
+		debugPrintf("Record a gameplay test\n");
+		debugPrintf("Usage :\n");
+		debugPrintf("recordTest [name]\n");
+		return true;
+	}
+
+	Tests::ActionLogTest *test = Tests::makeTestByName(argv[1]);
+	if (!test) {
+		debugPrintf("'%s' is not a valid test name\n", argv[1]);
+		return true;
+	}
+
+	StarkUserInterface->goToGameScreen();
+
+	// Clear the previous world resources
+	StarkResourceProvider->shutdown();
+	StarkResourceProvider->initGlobal();
+
+	test->setUp();
+	StarkActionLogger->startRecording();
+
+	delete test;
+
+	return false;
+}
 } // End of namespace Stark
