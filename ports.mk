@@ -108,11 +108,11 @@ residualvm.docktileplugin: ResidualVMDockTilePlugin
 endif
 
 bundle_name = ResidualVM.app
+bundle: all
 ifdef USE_DOCKTILEPLUGIN
-bundle: residualvm-static residualvm.docktileplugin
-else
-bundle: residualvm-static
+bundle: residualvm.docktileplugin
 endif
+bundle:
 	mkdir -p $(bundle_name)/Contents/MacOS
 	mkdir -p $(bundle_name)/Contents/Resources
 	echo "APPL????" > $(bundle_name)/Contents/PkgInfo
@@ -141,7 +141,7 @@ endif
 ifdef USE_OPENGL_SHADERS
 	chmod 755 $(bundle_name)/Contents/Resources/shaders
 endif
-	cp residualvm-static $(bundle_name)/Contents/MacOS/residualvm
+	cp residualvm $(bundle_name)/Contents/MacOS/residualvm
 	chmod 755 $(bundle_name)/Contents/MacOS/residualvm
 	$(STRIP) $(bundle_name)/Contents/MacOS/residualvm
 ifdef USE_DOCKTILEPLUGIN
@@ -168,151 +168,20 @@ endif
 	cp $(srcdir)/dists/iphone/icon-72.png $(bundle_name)/
 	cp $(srcdir)/dists/iphone/Default.png $(bundle_name)/
 
-# Location of static libs for the iPhone
-ifneq ($(BACKEND), iphone)
-# Static libaries, used for the residualvm-static and iphone targets
-OSX_STATIC_LIBS := `$(SDLCONFIG) --prefix=$(STATICLIBPATH) --static-libs`
-ifdef USE_SDL_NET
-ifdef USE_SDL2
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libSDL2_net.a
-else
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libSDL_net.a
-endif
-endif
-# With sdl2-config we don't always get the OpenGL framework
-OSX_STATIC_LIBS += -framework OpenGL
-endif
-
-ifdef USE_LIBCURL
-OSX_STATIC_LIBS += -lcurl
-endif
-
-ifdef USE_FREETYPE2
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libfreetype.a $(STATICLIBPATH)/lib/libbz2.a
-endif
-
-ifdef USE_VORBIS
-OSX_STATIC_LIBS += \
-		$(STATICLIBPATH)/lib/libvorbisfile.a \
-		$(STATICLIBPATH)/lib/libvorbis.a \
-		$(STATICLIBPATH)/lib/libogg.a
-endif
-
-ifdef USE_TREMOR
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libvorbisidec.a
-endif
-
-ifdef USE_FLAC
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libFLAC.a
-endif
-
-ifdef USE_FLUIDSYNTH
-OSX_STATIC_LIBS += \
-                -liconv -framework CoreMIDI -framework CoreAudio\
-                $(STATICLIBPATH)/lib/libfluidsynth.a \
-                $(STATICLIBPATH)/lib/libglib-2.0.a \
-                $(STATICLIBPATH)/lib/libintl.a
-
-ifneq ($(BACKEND), iphone)
-ifneq ($(BACKEND), ios7)
-OSX_STATIC_LIBS += -lreadline -framework AudioUnit
-endif
-endif
-endif
-
-ifdef USE_MAD
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libmad.a
-endif
-
-ifdef USE_PNG
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libpng.a
-endif
-
-ifdef USE_THEORADEC
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libtheoradec.a
-endif
-
-ifdef USE_FAAD
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libfaad.a
-endif
-
-ifdef USE_MPEG2
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libmpeg2.a
-endif
-
-ifdef USE_JPEG
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libjpeg.a
-endif
-
-ifdef USE_ZLIB
-OSX_ZLIB ?= $(STATICLIBPATH)/lib/libz.a
-endif
-
 ifdef USE_SPARKLE
 ifneq ($(SPARKLEPATH),)
-OSX_STATIC_LIBS += -F$(SPARKLEPATH)
+LDFLAGS += -F$(SPARKLEPATH)
 endif
-OSX_STATIC_LIBS += -framework Sparkle -Wl,-rpath,@loader_path/../Frameworks
+LDFLAGS += -framework Sparkle -Wl,-rpath,@loader_path/../Frameworks
 endif
-
-# ResidualVM specific:
-ifdef USE_OPENGL_SHADERS
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libglew.a
-endif
-
-# ResidualVM specific:
-ifdef USE_ICONV
-OSX_STATIC_LIBS += $(STATICLIBPATH)/lib/libiconv.a
-endif
-
-# Special target to create a static linked binary for Mac OS X.
-# We use -force_cpusubtype_ALL to ensure the binary runs on every
-# PowerPC machine.
-residualvm-static: $(OBJS)
-	$(CXX) $(LDFLAGS) -force_cpusubtype_ALL -o residualvm-static $(OBJS) \
-		-framework CoreMIDI \
-		$(OSX_STATIC_LIBS) \
-		$(OSX_ZLIB)
 
 # Special target to create a static linked binary for the iPhone (legacy, and iOS 7+)
 iphone: $(OBJS)
 	$(CXX) $(LDFLAGS) -o residualvm $(OBJS) \
-		$(OSX_STATIC_LIBS) \
 		-framework UIKit -framework CoreGraphics -framework OpenGLES \
 		-framework CoreFoundation -framework QuartzCore -framework Foundation \
 		-framework AudioToolbox -framework CoreAudio -lobjc -lz
 
-# Special target to create a snapshot disk image for Mac OS X
-# TODO: Replace AUTHORS by Credits.rtf
-osxsnap: bundle
-	mkdir ResidualVM-snapshot
-	$(srcdir)/devtools/credits.pl --text > $(srcdir)/AUTHORS
-	cp $(srcdir)/AUTHORS ./ResidualVM-snapshot/Authors
-	cp $(srcdir)/COPYING ./ResidualVM-snapshot/License\ \(GPL\)
-	cp $(srcdir)/COPYING.BSD ./ResidualVM-snapshot/License\ \(BSD\)
-	cp $(srcdir)/COPYING.LGPL ./ResidualVM-snapshot/License\ \(LGPL\)
-	cp $(srcdir)/COPYING.FREEFONT ./ResidualVM-snapshot/License\ \(FREEFONT\)
-	cp $(srcdir)/COPYING.ISC ./ResidualVM-snapshot/License\ \(ISC\)
-	cp $(srcdir)/COPYING.LUA ./ResidualVM-snapshot/License\ \(Lua\)
-	cp $(srcdir)/COPYING.MIT ./ResidualVM-snapshot/License\ \(MIT\)
-	cp $(srcdir)/COPYING.TINYGL ./ResidualVM-snapshot/License\ \(TinyGL\)
-	cp $(srcdir)/COPYRIGHT ./ResidualVM-snapshot/Copyright\ Holders
-	cp $(srcdir)/KNOWN_BUGS ./ResidualVM-snapshot/Known\ Bugs
-	cp $(srcdir)/NEWS ./ResidualVM-snapshot/News
-	cp $(srcdir)/README.md ./ResidualVM-snapshot/ResidualVM\ ReadMe
-	mkdir ResidualVM-snapshot/doc
-	cp $(srcdir)/doc/QuickStart ./ResidualVM-snapshot/doc/QuickStart
-	SetFile -t ttro -c ttxt ./ResidualVM-snapshot/*
-	CpMac -r $(bundle_name) ./ResidualVM-snapshot/
-	#cp $(srcdir)/dists/macosx/DS_Store ./ResidualVM-snapshot/.DS_Store
-	#cp $(srcdir)/dists/macosx/background.jpg ./ResidualVM-snapshot/background.jpg
-	#SetFile -a V ./ResidualVM-snapshot/.DS_Store
-	#SetFile -a V ./ResidualVM-snapshot/background.jpg
-	hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
-					-srcfolder ResidualVM-snapshot \
-					-volname "ResidualVM" \
-					ResidualVM-snapshot.dmg
-	rm -rf ResidualVM-snapshot
 publish-appcast:
 	scp dists/macosx/residualvm_appcast.xml www.residualvm.org:/var/www/appcasts/macosx/release.xml
 
