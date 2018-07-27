@@ -315,7 +315,7 @@ void OptionsDialog::build() {
 			_filteringCheckbox->setVisible(false);
 
 		// Aspect ratio setting
-		if (_guioptions.contains(GUIO_NOASPECT) || !_fullscreenCheckbox->getState()) { // ResidualVM specific change
+		if (_guioptions.contains(GUIO_NOASPECT)) { // ResidualVM specific change
 			_aspectCheckbox->setState(true); // ResidualVM specific change
 			_aspectCheckbox->setEnabled(false);
 		} else {
@@ -841,11 +841,6 @@ void OptionsDialog::handleCommand(CommandSender *sender, uint32 cmd, uint32 data
 		_joystickDeadzoneLabel->setValue(_joystickDeadzoneSlider->getValue());
 		_joystickDeadzoneLabel->draw();
 		break;
-	// ResidualVM specific
-	case kFullscreenToggled:
-		_aspectCheckbox->setEnabled(_fullscreenCheckbox->getState());
-		draw();
-		break;
 	case kApplyCmd:
 		apply();
 		break;
@@ -873,7 +868,7 @@ void OptionsDialog::setGraphicSettingsState(bool enabled) {
 #endif
 #ifndef GUI_ENABLE_KEYSDIALOG
 	_fullscreenCheckbox->setEnabled(enabled);
-	if (_guioptions.contains(GUIO_NOASPECT) || !_fullscreenCheckbox->getState())
+	if (_guioptions.contains(GUIO_NOASPECT))
 		_aspectCheckbox->setEnabled(false);
 	else
 		_aspectCheckbox->setEnabled(enabled);
