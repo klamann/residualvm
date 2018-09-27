@@ -397,6 +397,8 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 		ConfMan.loadDefaultConfigFile();
 	}
 
+	ConfMan.loadOverrideFile("residualvm-override.ini");
+
 	// Update the config file
 	ConfMan.set("versioninfo", gScummVMVersion, Common::ConfigManager::kApplicationDomain);
 
