@@ -219,7 +219,9 @@ Common::Error AdvancedMetaEngine::createInstance(OSystem *syst, Engine **engine)
 	Common::Platform platform = Common::kPlatformUnknown;
 	Common::String extra;
 
-	if (ConfMan.hasKey("language"))
+	bool preferOsLanguage = ConfMan.hasKey("prefer_os_language") && ConfMan.getBool("prefer_os_language");
+
+	if (ConfMan.hasKey("language") && !preferOsLanguage)
 		language = Common::parseLanguage(ConfMan.get("language"));
 	if (ConfMan.hasKey("platform"))
 		platform = Common::parsePlatform(ConfMan.get("platform"));
@@ -265,6 +267,26 @@ Common::Error AdvancedMetaEngine::createInstance(OSystem *syst, Engine **engine)
 
 	// Run the detector on this
 	ADGameDescList matches = detectGame(files.begin()->getParent(), allFiles, language, platform, extra);
+
+	if (preferOsLanguage) {
+		Common::Language osLanguage = Common::parseLanguageFromLocale(syst->getSystemLanguage().c_str());
+		if (osLanguage == Common::EN_USA || osLanguage == Common::EN_GRB) osLanguage = Common::EN_ANY;
+
+		ADGameDescList languageMatches = removeOtherLanguages(matches, osLanguage);
+
+		if (!languageMatches.empty()) {
+			ConfMan.set("language", Common::getLanguageCode(osLanguage), Common::ConfigManager::kTransientDomain);
+		} else if (languageMatches.empty() && ConfMan.hasKey("language")) {
+			Common::Language fallbackLanguage = Common::parseLanguage(ConfMan.get("language"));
+			warning("No game variant matching the operating system language ('%s') was found, falling back to '%s'",
+					Common::getLanguageDescription(osLanguage),
+					Common::getLanguageDescription(fallbackLanguage));
+
+			languageMatches = removeOtherLanguages(matches, fallbackLanguage);
+		}
+
+		matches = languageMatches;
+	}
 
 	if (cleanupPirated(matches))
 		return Common::kNoGameDataFoundError;
@@ -323,6 +345,18 @@ Common::Error AdvancedMetaEngine::createInstance(OSystem *syst, Engine **engine)
 		return Common::kNoGameDataFoundError;
 	else
 		return Common::kNoError;
+}
+
+ADGameDescList AdvancedMetaEngine::removeOtherLanguages(const ADGameDescList &games, Common::Language language) const {
+	ADGameDescList languageMatches = games;
+	for (ADGameDescList::iterator it = languageMatches.begin(); it != languageMatches.end();) {
+		if ((*it)->language != language)
+			it = languageMatches.erase(it);
+		else
+			it++;
+	}
+
+	return languageMatches;
 }
 
 void AdvancedMetaEngine::reportUnknown(const Common::FSNode &path, const ADFilePropertiesMap &filesProps) const {

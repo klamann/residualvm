@@ -341,6 +341,8 @@ protected:
 
 	/** Get the properties (size and MD5) of this file. */
 	bool getFileProperties(const Common::FSNode &parent, const FileMap &allFiles, const ADGameDescription &game, const Common::String fname, ADFileProperties &fileProps) const;
+
+	ADGameDescList removeOtherLanguages(const ADGameDescList &games, Common::Language language) const;
 };
 
 #endif
