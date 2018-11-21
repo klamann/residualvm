@@ -1,15 +1,19 @@
 in float isAprilOnFace;
+in float isFaceEnabled;
 
 OUTPUT
 
 uniform vec3 color;
 uniform vec3 aprilColor;
+uniform vec3 enabledColor;
 
 void main()
 {
 	if (isAprilOnFace > 0.5) {
 		outColor = vec4(aprilColor, 1.0);
-	} else {
+	} else if (isFaceEnabled > 0.5) {
+		outColor = vec4(enabledColor, 1.0);
+   	} else {
 		outColor = vec4(color, 1.0);
 	}
 }

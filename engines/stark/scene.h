@@ -99,8 +99,6 @@ public:
 	void setMaxShadowLength(float length) { _maxShadowLength = length; }
 	float getMaxShadowLength() const { return _maxShadowLength; }
 
-	Common::Array<Math::Vector3d> _floorVertices;
-	Common::Array<uint32> _floorIndices;
 	OpenGL::Shader *_shader;
 
 private:

@@ -27,6 +27,8 @@
 
 #include "engines/stark/services/services.h"
 #include "engines/stark/services/global.h"
+#include "engines/stark/resources/floor.h"
+#include "engines/stark/resources/floorface.h"
 #include "engines/stark/resources/item.h"
 
 #include "common/system.h"
@@ -45,7 +47,7 @@ Scene::Scene(Gfx::Driver *gfx) :
 		_fadeLevel(1.0),
 		_floatOffset(0.0),
 		_maxShadowLength(0.075f) {
-	static const char* attributes[] = { "pos", "face", nullptr };
+	static const char* attributes[] = { "pos", "face", "enabled", nullptr };
 	_shader = OpenGL::Shader::fromFiles("stark_floor", attributes);
 }
 
@@ -182,15 +184,28 @@ void Scene::drawFloor() {
 	struct Attributes {
 		Math::Vector3d pos;
 		float face;
+		float enabled;
 	};
 
-	Attributes *attributes = new Attributes[_floorIndices.size()];
-	for (uint i = 0; i < _floorIndices.size(); i++) {
-			attributes[i].pos = _floorVertices[_floorIndices[i]];
-			attributes[i].face = i / 3;
+	Resources::Floor *floor = StarkGlobal->getCurrent()->getFloor();
+	if (!floor) return;
+
+	Common::Array<Resources::FloorFace *> faces = floor->listChildren<Resources::FloorFace>();
+
+	Attributes *attributes = new Attributes[faces.size() * 3];
+	for (uint i = 0; i < faces.size(); i++) {
+		if (!faces[i]->hasVertices()) continue;
+
+		bool enabled = faces[i]->isEnabled();
+
+		for (uint j = 0; j < 3; j++) {
+			attributes[3 * i + j].pos = floor->getVertex(faces[i]->getVertexIndex(j));
+			attributes[3 * i + j].face = i;
+			attributes[3 * i + j].enabled = enabled;
+		}
 	}
 
-	uint32 vbo = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(float) * 4 * _floorIndices.size(), &attributes[0]);
+	uint32 vbo = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(float) * 5 * 3 * faces.size(), &attributes[0]);
 	delete[] attributes;
 
 	Math::Matrix4 mvp = _projectionMatrix * _viewMatrix;
@@ -198,23 +213,24 @@ void Scene::drawFloor() {
 
 	int32 aprilFace = -1;
 
-	Global *global = StarkServices::instance().global;
-	Resources::GlobalItemTemplate *april = global->getApril();
+	Resources::GlobalItemTemplate *april = StarkGlobal->getApril();
 	if (april) {
 		Resources::ModelItem *a2 = Resources::Object::cast<Resources::ModelItem>(april->getSceneInstance());
 		aprilFace = a2->getFloorFaceIndex();
 	}
 
-	_shader->enableVertexAttribute("pos", vbo, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-	_shader->enableVertexAttribute("face", vbo, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 3 * sizeof(float));
+	_shader->enableVertexAttribute("pos", vbo, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+	_shader->enableVertexAttribute("face", vbo, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 3 * sizeof(float));
+	_shader->enableVertexAttribute("enabled", vbo, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 4 * sizeof(float));
 	_shader->use(true);
 	_shader->setUniform("mvp", mvp);
 	_shader->setUniform("aprilFace", aprilFace);
-	_shader->setUniform("color", Math::Vector3d(0, 0, 1.0));
+	_shader->setUniform("color", Math::Vector3d(1.0, 0, 0));
 	_shader->setUniform("aprilColor", Math::Vector3d(0, 1.0, 0));
+	_shader->setUniform("enabledColor", Math::Vector3d(0, 0, 1.0));
 
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glDrawArrays(GL_TRIANGLES, 0, _floorIndices.size());
+	glDrawArrays(GL_TRIANGLES, 0, 3 * faces.size());
 
 	glUseProgram(0);
 

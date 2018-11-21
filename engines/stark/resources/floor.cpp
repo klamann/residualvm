@@ -145,17 +145,6 @@ void Floor::onAllLoaded() {
 	_faces = listChildren<FloorFace>();
 
 	buildEdgeList();
-
-	Scene *scene = StarkServices::instance().scene;
-
-	scene->_floorVertices = _vertices;
-	scene->_floorIndices.clear();
-
-	for (uint i = 0; i < _faces.size(); i++) {
-		scene->_floorIndices.push_back(_faces[i]->_indices[0]);
-		scene->_floorIndices.push_back(_faces[i]->_indices[1]);
-		scene->_floorIndices.push_back(_faces[i]->_indices[2]);
-	}
 }
 
 void Floor::saveLoad(ResourceSerializer *serializer) {

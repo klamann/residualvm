@@ -1,13 +1,16 @@
 in vec3 pos;
 in float face;
+in float enabled;
 
 uniform mat4 mvp;
 uniform int aprilFace;
 
 out float isAprilOnFace;
+out float isFaceEnabled;
 
 void main()
 {
 	isAprilOnFace = int(face) == aprilFace ? 1 : 0;
+	isFaceEnabled = int(enabled);
 	gl_Position = mvp * vec4(pos.xyz, 1.0);
 }
