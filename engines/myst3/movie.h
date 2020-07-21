@@ -23,6 +23,7 @@
 #ifndef MOVIE_H_
 #define MOVIE_H_
 
+#include "engines/myst3/archive.h"
 #include "engines/myst3/gfx.h"
 #include "engines/myst3/node.h"
 

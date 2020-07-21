@@ -21,8 +21,7 @@ MODULE_OBJS := \
 	movie.o \
 	myst3.o \
 	node.o \
-	nodecube.o \
-	nodeframe.o \
+	node_software.o \
 	puzzles.o \
 	resource_loader.o \
 	scene.o \

@@ -1147,29 +1147,18 @@ void Puzzles::journalSaavedro(int16 move) {
 			if (!jpegDesc.isValid())
 				error("Frame %d does not exist", nodeLeft);
 
-			Graphics::Surface *bitmap = Myst3Engine::decodeJpeg(&jpegDesc);
+			Graphics::Surface leftNodeBitmap = Myst3Engine::decodeJpeg(jpegDesc);
 
-			// Copy the left half of the node to a new surface
-			Graphics::Surface *leftBitmap = new Graphics::Surface();
-			leftBitmap->create(bitmap->w / 2, bitmap->h, Texture::getRGBAPixelFormat());
-
-			for (uint i = 0; i < bitmap->h; i++) {
-				memcpy(leftBitmap->getBasePtr(0, i),
-						bitmap->getBasePtr(0, i),
-						leftBitmap->w * 4);
-			}
-
-			bitmap->free();
-			delete bitmap;
+			Common::Rect leftRect(leftNodeBitmap.w / 2, leftNodeBitmap.h);
+			const Graphics::Surface leftArea = leftNodeBitmap.getSubArea(leftRect);
 
 			// Create a spotitem covering the left half of the screen
 			// to display the left page
-			SpotItemFace *leftPage = _vm->addMenuSpotItem(999, 1, Common::Rect(0, 0, leftBitmap->w, leftBitmap->h));
+			Common::Rect leftFrameHalf(Renderer::kOriginalWidth / 2, Renderer::kFrameHeight);
+			_vm->addMenuSpotItem(999, 1, leftFrameHalf);
+			_vm->_nodeRenderer->updateSpotItemBitmap(999, leftArea);
 
-			leftPage->updateData(leftBitmap);
-
-			leftBitmap->free();
-			delete leftBitmap;
+			leftNodeBitmap.free();
 		}
 	}
 }

@@ -38,7 +38,6 @@
 namespace Myst3 {
 
 class Myst3Engine;
-class SpotItemFace;
 class GameState;
 
 enum DialogType {
@@ -87,14 +86,12 @@ public:
 	Graphics::Surface *borrowSaveThumbnail();
 
 	virtual void saveLoadAction(uint16 action, uint16 item) = 0;
-	virtual void setSaveLoadSpotItem(uint16 id, SpotItemFace *spotItem);
 
 protected:
 	Myst3Engine *_vm;
 
 	Common::ScopedPtr<Graphics::Surface, Graphics::SurfaceDeleter> _saveThumbnail;
 
-	SpotItemFace *_saveLoadSpotItem;
 	Common::String _saveLoadAgeName;
 
 	uint dialogIdFromType(DialogType type);
@@ -148,14 +145,11 @@ public:
 	bool handleInput(const Common::KeyState &e) override;
 
 	void saveLoadAction(uint16 action, uint16 item) override;
-	void setSaveLoadSpotItem(uint16 id, SpotItemFace *spotItem) override;
 
 private:
 	static const uint16 kAlbumThumbnailWidth = 100;
 	static const uint16 kAlbumThumbnailHeight = 56;
 
-	// This map does not own its elements
-	Common::HashMap<int, SpotItemFace *> _albumSpotItems;
 	Common::String _saveLoadTime;
 
 	void loadMenuOpen();

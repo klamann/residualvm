@@ -60,11 +60,12 @@ class Inventory;
 class Database;
 class Scene;
 class Script;
-class SpotItemFace;
+class Subtitles;
 class SunSpot;
 class Renderer;
 class Menu;
 class Node;
+class NodeRenderer;
 class Sound;
 class Ambient;
 class ResourceLoader;
@@ -97,6 +98,7 @@ public:
 	Database *_db;
 	Sound *_sound;
 	Ambient *_ambient;
+	NodeRenderer *_nodeRenderer;
 	ResourceLoader *_resourceLoader;
 	
 	Common::RandomSource *_rnd;
@@ -123,7 +125,7 @@ public:
 	Common::Error saveGameState(const Common::String &desc, const Graphics::Surface *thumbnail);
 
 	Graphics::Surface *loadTexture(uint16 id);
-	static Graphics::Surface *decodeJpeg(const ResourceDescription *jpegDesc);
+	static Graphics::Surface decodeJpeg(const ResourceDescription &jpegDesc);
 
 	void goToNode(uint16 nodeID, TransitionType transition);
 	void loadNode(uint16 nodeID, uint32 roomID = 0, uint32 ageID = 0);
@@ -153,8 +155,9 @@ public:
 	void setMovieLooping(uint16 id, bool loop);
 
 	void addSpotItem(uint16 id, int16 condition, bool fade);
-	SpotItemFace *addMenuSpotItem(uint16 id, int16 condition, const Common::Rect &rect);
+	void addMenuSpotItem(uint16 id, int16 condition, const Common::Rect &rect);
 	void loadNodeSubtitles(uint32 id);
+	bool hasNodeSubtitlesToDraw();
 
 	void addSunSpot(uint16 pitch, uint16 heading, uint16 intensity,
 			uint16 color, uint16 var, bool varControlledIntensity, uint16 radius);
@@ -187,6 +190,7 @@ private:
 	const Myst3GameDescription *_gameDescription;
 
 	Node *_node;
+	Subtitles *_nodeSubtitles;
 
 	Script *_scriptEngine;
 

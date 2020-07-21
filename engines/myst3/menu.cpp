@@ -220,8 +220,7 @@ int16 GamepadDialog::update() {
 }
 
 Menu::Menu(Myst3Engine *vm) :
-		_vm(vm),
-		_saveLoadSpotItem(0) {
+		_vm(vm) {
 }
 
 Menu::~Menu() {
@@ -446,12 +445,6 @@ Graphics::Surface *Menu::createThumbnail(Graphics::Surface *big) {
 	return small;
 }
 
-void Menu::setSaveLoadSpotItem(uint16 id, SpotItemFace *spotItem) {
-	if (id == 1) {
-		_saveLoadSpotItem = spotItem;
-	}
-}
-
 bool Menu::isOpen() const {
 	return _vm->_state->getLocationAge() == 9 && _vm->_state->getLocationRoom() == kRoomMenu;
 }
@@ -570,12 +563,11 @@ void PagingMenu::loadMenuSelect(uint16 item) {
 	_saveLoadAgeName = getAgeLabel(&gameState);
 
 	// Update the save thumbnail
-	if (_saveLoadSpotItem) {
-		Graphics::Surface *thumbnail = GameState::readThumbnail(saveFile);
-		_saveLoadSpotItem->updateData(thumbnail);
-		thumbnail->free();
-		delete thumbnail;
-	}
+	// Update the save thumbnail
+	Graphics::Surface *thumbnail = GameState::readThumbnail(saveFile);
+	_vm->_nodeRenderer->updateSpotItemBitmap(1, *thumbnail);
+	thumbnail->free();
+	delete thumbnail;
 
 	delete saveFile;
 }
@@ -604,8 +596,9 @@ void PagingMenu::saveMenuOpen() {
 	saveLoadUpdateVars();
 
 	// Update the thumbnail to display
-	if (_saveLoadSpotItem && _saveThumbnail)
-		_saveLoadSpotItem->updateData(_saveThumbnail.get());
+	if (_saveThumbnail) {
+		_vm->_nodeRenderer->updateSpotItemBitmap(1, *_saveThumbnail.get());
+	}
 }
 
 void PagingMenu::saveMenuSelect(uint16 item) {
@@ -679,8 +672,8 @@ void PagingMenu::saveLoadErase() {
 	saveLoadUpdateVars();
 
 	// Load menu specific
-	if (node == kNodeMenuLoadGame && _saveLoadSpotItem) {
-		_saveLoadSpotItem->clear();
+	if (node == kNodeMenuLoadGame) {
+		_vm->_nodeRenderer->clearSpotItemBitmap(1);
 		_saveLoadAgeName.clear();
 	}
 
@@ -892,19 +885,17 @@ void AlbumMenu::loadSaves() {
 		GameState::StateData data;
 		data.syncWithSaveGame(s);
 
-		if (_albumSpotItems.contains(i)) {
-			// Read and resize the thumbnail
-			Graphics::Surface *saveThumb = GameState::readThumbnail(saveFile);
-			Graphics::Surface *miniThumb = GameState::resizeThumbnail(saveThumb, kAlbumThumbnailWidth, kAlbumThumbnailHeight);
-			saveThumb->free();
-			delete saveThumb;
+		// Read and resize the thumbnail
+		Graphics::Surface *saveThumb = GameState::readThumbnail(saveFile);
+		Graphics::Surface *miniThumb = GameState::resizeThumbnail(saveThumb, kAlbumThumbnailWidth, kAlbumThumbnailHeight);
+		saveThumb->free();
+		delete saveThumb;
 
-			SpotItemFace *spotItem = _albumSpotItems.getVal(i);
-			spotItem->updateData(miniThumb);
+		uint spotItemId = 100 * i + 2;
+		_vm->_nodeRenderer->updateSpotItemBitmap(spotItemId, *miniThumb);
 
-			miniThumb->free();
-			delete miniThumb;
-		}
+		miniThumb->free();
+		delete miniThumb;
 
 		delete saveFile;
 	}
@@ -932,7 +923,7 @@ void AlbumMenu::loadMenuSelect() {
 		// No save in the selected slot
 		_saveLoadAgeName = "";
 		_saveLoadTime = "";
-		_saveLoadSpotItem->initBlack(GameState::kThumbnailWidth, GameState::kThumbnailHeight);
+		_vm->_nodeRenderer->clearSpotItemBitmap(1);
 		return;
 	}
 
@@ -952,12 +943,10 @@ void AlbumMenu::loadMenuSelect() {
 	_saveLoadTime = gameState->formatSaveTime();
 
 	// Update the save thumbnail
-	if (_saveLoadSpotItem) {
-		Graphics::Surface *thumbnail = GameState::readThumbnail(saveFile);
-		_saveLoadSpotItem->updateData(thumbnail);
-		thumbnail->free();
-		delete thumbnail;
-	}
+	Graphics::Surface *thumbnail = GameState::readThumbnail(saveFile);
+	_vm->_nodeRenderer->updateSpotItemBitmap(1, *thumbnail);
+	thumbnail->free();
+	delete thumbnail;
 
 	delete gameState;
 }
@@ -984,8 +973,9 @@ void AlbumMenu::saveMenuOpen() {
 	_saveLoadTime = "";
 
 	// Update the thumbnail to display
-	if (_saveLoadSpotItem && _saveThumbnail)
-		_saveLoadSpotItem->updateData(_saveThumbnail.get());
+	if (_saveThumbnail) {
+		_vm->_nodeRenderer->updateSpotItemBitmap(1, *_saveThumbnail.get());
+	}
 }
 
 void AlbumMenu::saveMenuSave() {
@@ -1013,14 +1003,6 @@ void AlbumMenu::saveMenuSave() {
 void AlbumMenu::setSavesAvailable() {
 	Common::HashMap<int, Common::String> saveFiles = listSaveFiles();
 	_vm->_state->setMenuSavesAvailable(!saveFiles.empty());
-}
-
-void AlbumMenu::setSaveLoadSpotItem(uint16 id, SpotItemFace *spotItem) {
-	if (id % 100 == 2) {
-		_albumSpotItems.setVal(id / 100, spotItem);
-	} else {
-		Menu::setSaveLoadSpotItem(id, spotItem);
-	}
 }
 
 } // End of namespace Myst3

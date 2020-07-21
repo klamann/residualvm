@@ -40,11 +40,12 @@
 #include "engines/myst3/debug.h"
 #include "engines/myst3/effects.h"
 #include "engines/myst3/myst3.h"
-#include "engines/myst3/nodecube.h"
-#include "engines/myst3/nodeframe.h"
 #include "engines/myst3/resource_loader.h"
+#include "engines/myst3/node.h"
+#include "engines/myst3/node_software.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"
+#include "engines/myst3/subtitles.h"
 #include "engines/myst3/cursor.h"
 #include "engines/myst3/inventory.h"
 #include "engines/myst3/script.h"
@@ -67,7 +68,8 @@ namespace Myst3 {
 Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 		Engine(syst), _system(syst), _gameDescription(version),
 		_db(0), _console(0), _scriptEngine(0),
-		_state(0), _node(0), _scene(0), _resourceLoader(nullptr),
+		_state(0), _node(0), _nodeRenderer(0), _nodeSubtitles(0),
+		_scene(0), _resourceLoader(nullptr),
 		_cursor(0), _inventory(0), _gfx(0), _menu(0),
 		_rnd(0), _sound(0), _ambient(0),
 		_inputSpacePressed(false), _inputEnterPressed(false),
@@ -120,6 +122,8 @@ Myst3Engine::~Myst3Engine() {
 	delete _inventory;
 	delete _cursor;
 	delete _scene;
+	delete _nodeSubtitles;
+	delete _nodeRenderer;
 	delete _node;
 	delete _resourceLoader;
 	delete _db;
@@ -694,9 +698,9 @@ void Myst3Engine::drawFrame(bool noSwap) {
 		_gfx->setupCameraPerspective(pitch, heading, fov);
 	}
 
-	if (_node) {
-		_node->update();
-		_gfx->renderDrawable(_node, _scene);
+	if (_nodeRenderer) {
+		_nodeRenderer->update();
+		_gfx->renderDrawable(_nodeRenderer, _scene);
 	}
 
 	for (int i = _movies.size() - 1; i >= 0 ; i--) {
@@ -734,8 +738,10 @@ void Myst3Engine::drawFrame(bool noSwap) {
 	}
 
 	// Draw spot subtitles
-	if (_node) {
-		_gfx->renderDrawableOverlay(_node, _scene);
+	if (_nodeSubtitles && hasNodeSubtitlesToDraw()) {
+		uint subId = _state->getSpotSubtitle();
+		_nodeSubtitles->setFrame(15 * subId + 1);
+		_gfx->renderWindowOverlay(_nodeSubtitles);
 	}
 
 	bool cursorVisible = _cursor->isVisible();
@@ -762,7 +768,7 @@ bool Myst3Engine::isInventoryVisible() {
 	if (_state->getViewType() == kMenu)
 		return false;
 
-	if (_node && _node->hasSubtitlesToDraw())
+	if (hasNodeSubtitlesToDraw())
 		return false;
 
 	if (_inventoryManualHide) {
@@ -859,7 +865,16 @@ void Myst3Engine::loadNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
 	}
 
 	// The effects can only be created after running the node init scripts
-	_node->initEffects();
+
+	// The node init script does not clear the magnet effect state.
+	// Here we ignore effects on menu nodes so we don't try to
+	// to load the magnet effect when opening the main menu on Amateria.
+	if (_state->getViewType() != kMenu) {
+		_node->addEffect(WaterEffect ::create(this, newRoomName, _node->id()));
+		_node->addEffect(MagnetEffect::create(this, newRoomName, _node->id()));
+		_node->addEffect(LavaEffect  ::create(this, newRoomName, _node->id()));
+		_node->addEffect(ShieldEffect::create(this, _node->id()));
+	}
 
 	_shakeEffect = ShakeEffect::create(this);
 	_rotationEffect = RotationEffect::create(this);
@@ -890,6 +905,12 @@ void Myst3Engine::unloadNode() {
 	_state->setShakeEffectAmpl(0);
 	delete _rotationEffect;
 	_rotationEffect = nullptr;
+
+	delete _nodeSubtitles;
+	_nodeSubtitles = nullptr;
+
+	delete _nodeRenderer;
+	_nodeRenderer = nullptr;
 
 	delete _node;
 	_node = nullptr;
@@ -954,7 +975,8 @@ void Myst3Engine::loadNodeCubeFaces(uint16 nodeID) {
 	updateCursor();
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
-	_node = new NodeCube(this, room, nodeID);
+	_node = new Node(room, nodeID, Node::kCube);
+	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::loadNodeFrame(uint16 nodeID) {
@@ -964,7 +986,8 @@ void Myst3Engine::loadNodeFrame(uint16 nodeID) {
 	updateCursor();
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
-	_node = new NodeFrame(this, room, nodeID);
+	_node = new Node(room, nodeID, Node::kFrame);
+	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::loadNodeMenu(uint16 nodeID) {
@@ -974,7 +997,8 @@ void Myst3Engine::loadNodeMenu(uint16 nodeID) {
 	updateCursor();
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
-	_node = new NodeFrame(this, room, nodeID);
+	_node = new Node(room, nodeID, Node::kMenu);
+	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::runScriptsFromNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
@@ -1298,23 +1322,40 @@ void Myst3Engine::setMovieLooping(uint16 id, bool loop) {
 void Myst3Engine::addSpotItem(uint16 id, int16 condition, bool fade) {
 	assert(_node);
 
-	_node->loadSpotItem(id, condition, fade);
+	uint16 fadeVariable = abs(condition);
+	SpotItem spotItem(id, condition, fade, fadeVariable);
+
+	_nodeRenderer->initSpotItem(spotItem);
+	_node->addSpotItem(spotItem);
 }
 
-SpotItemFace *Myst3Engine::addMenuSpotItem(uint16 id, int16 condition, const Common::Rect &rect) {
+void Myst3Engine::addMenuSpotItem(uint16 id, int16 condition, const Common::Rect &rect) {
 	assert(_node);
 
-	SpotItemFace *face = _node->loadMenuSpotItem(condition, rect);
+	SpotItem spotItem(id, condition, false, 0);
 
-	_menu->setSaveLoadSpotItem(id, face);
-
-	return face;
+	_nodeRenderer->initSpotItemMenu(spotItem, rect);
+	_node->addSpotItem(spotItem);
 }
 
 void Myst3Engine::loadNodeSubtitles(uint32 id) {
 	assert(_node);
 
-	_node->loadSubtitles(id);
+	delete _nodeSubtitles;
+	_nodeSubtitles = Subtitles::create(this, _node->room(), id);
+}
+
+bool Myst3Engine::hasNodeSubtitlesToDraw() {
+	if (!_nodeSubtitles || _state->getSpotSubtitle() <= 0)
+		return false;
+
+	if (!isTextLanguageEnglish() && _state->getLocationRoom() == kRoomNarayan) {
+		// The words written on the walls in Narayan are always in English.
+		// Show the subtitles regardless of the "subtitles" setting if the game language is not English.
+		return true;
+	}
+
+	return ConfMan.getBool("subtitles");
 }
 
 Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
@@ -1334,8 +1375,8 @@ Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
 	return s;
 }
 
-Graphics::Surface *Myst3Engine::decodeJpeg(const ResourceDescription *jpegDesc) {
-	Common::SeekableReadStream *jpegStream = jpegDesc->createReadStream();
+Graphics::Surface Myst3Engine::decodeJpeg(const ResourceDescription &jpegDesc) {
+	Common::SeekableReadStream *jpegStream = jpegDesc.createReadStream();
 
 	Image::JPEGDecoder jpeg;
 	jpeg.setOutputPixelFormat(Texture::getRGBAPixelFormat());
@@ -1348,8 +1389,8 @@ Graphics::Surface *Myst3Engine::decodeJpeg(const ResourceDescription *jpegDesc) 
 	assert(bitmap->format == Texture::getRGBAPixelFormat());
 
 	// JPEGDecoder owns the decoded surface, we have to make a copy...
-	Graphics::Surface *rgbaSurface = new Graphics::Surface();
-	rgbaSurface->copyFrom(*bitmap);
+	Graphics::Surface rgbaSurface;
+	rgbaSurface.copyFrom(*bitmap);
 	return rgbaSurface;
 }
 

@@ -164,9 +164,11 @@ WaterEffect::WaterEffect(Myst3Engine *vm) :
 		Effect(vm),
 		_lastUpdate(0),
 		_step(0) {
+	_vm->_state->setWaterEffectActive(true);
 }
 
 WaterEffect::~WaterEffect() {
+	_vm->_state->setWaterEffectActive(false);
 }
 
 WaterEffect *WaterEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
@@ -343,10 +345,11 @@ LavaEffect::LavaEffect(Myst3Engine *vm) :
 		Effect(vm),
 		_lastUpdate(0),
 		_step(0) {
+	_vm->_state->setLavaEffectActive(true);
 }
 
 LavaEffect::~LavaEffect() {
-
+	_vm->_state->setLavaEffectActive(false);
 }
 
 LavaEffect *LavaEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
@@ -439,10 +442,12 @@ MagnetEffect::MagnetEffect(Myst3Engine *vm) :
 		_position(0),
 		_lastAmpl(0),
 		_shakeStrength(nullptr) {
+	_vm->_state->setMagnetEffectActive(true);
 }
 
 MagnetEffect::~MagnetEffect() {
 	delete _shakeStrength;
+	_vm->_state->setMagnetEffectActive(false);
 }
 
 MagnetEffect *MagnetEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
@@ -686,10 +691,11 @@ ShieldEffect::ShieldEffect(Myst3Engine *vm):
 	_lastTick(0),
 	_amplitude(1.0),
 	_amplitudeIncrement(1.0 / 64.0) {
+	_vm->_state->setShieldEffectActive(true);
 }
 
 ShieldEffect::~ShieldEffect() {
-
+	_vm->_state->setShieldEffectActive(false);
 }
 
 ShieldEffect *ShieldEffect::create(Myst3Engine *vm, uint32 id) {

@@ -20,11 +20,10 @@
  *
  */
 
-#ifndef MYST3_ROOM_H
-#define MYST3_ROOM_H
+#ifndef MYST3_NODE_H
+#define MYST3_NODE_H
 
-#include "engines/myst3/archive.h"
-#include "engines/myst3/gfx.h"
+#include "myst3/gfx.h"
 
 #include "common/array.h"
 #include "common/rect.h"
@@ -33,89 +32,33 @@
 
 namespace Myst3 {
 
-class Texture;
 class Myst3Engine;
-class Subtitles;
 class ResourceLoader;
 class Effect;
 
-class Face {
-public:
-	Graphics::Surface *_bitmap;
-	Graphics::Surface *_finalBitmap;
-	Texture *_texture;
-
-	Face(Myst3Engine *vm);
-	~Face();
-
-	void setTextureFromJPEG(const ResourceDescription *jpegDesc);
-
-	void addTextureDirtyRect(const Common::Rect &rect);
-	bool isTextureDirty() { return _textureDirty; }
-
-	void uploadTexture();
-
-private:
-	bool _textureDirty;
-	Common::Rect _textureDirtyRect;
-
-	Myst3Engine *_vm;
-};
-
-class SpotItemFace {
-public:
-	SpotItemFace(Face *face, uint16 posX, uint16 posY);
-	~SpotItemFace();
-
-	void initBlack(uint16 width, uint16 height);
-	void loadData(const ResourceDescription *jpegDesc);
-	void updateData(const Graphics::Surface *surface);
-	void clear();
-
-	void draw();
-	void undraw();
-	void fadeDraw();
-
-	bool isDrawn() { return _drawn; }
-	void setDrawn(bool drawn) { _drawn = drawn; }
-	uint16 getFadeValue() { return _fadeValue; }
-	void setFadeValue(uint16 value) { _fadeValue = value; }
-
-	Common::Rect getFaceRect() const;
-
-private:
-	Face *_face;
-	bool _drawn;
-	uint16 _fadeValue;
-	uint16 _posX;
-	uint16 _posY;
-
-	Graphics::Surface *_bitmap;
-	Graphics::Surface *_notDrawnBitmap;
-
-	void initNotDrawn(uint16 width, uint16 height);
-};
-
 class SpotItem {
 public:
-	SpotItem(Myst3Engine *vm);
-	~SpotItem();
+	SpotItem(uint16 id, int16 condition, bool fade, uint16 fadeVariable);
 
-	void setCondition(int16 condition) { _condition = condition; }
-	void setFade(bool fade) { _enableFade = fade; }
-	void setFadeVar(uint16 var) { _fadeVar = var; }
-	void addFace(SpotItemFace *face) { _faces.push_back(face); }
+	uint16 id() const { return _id; }
+	int16 condition() const { return _condition; }
+	bool shouldFade() const { return _enableFade; }
+	uint16 fadeVariable() const { return _fadeVariable; }
 
-	void updateUndraw();
-	void updateDraw();
+	bool drawn() const { return _drawn; }
+	void setDrawn(bool drawn) { _drawn = drawn; }
+
+	uint16 fadeValue() const { return _fadeValue; }
+	void setFadeValue(uint16 fadeValue) { _fadeValue = fadeValue; }
+
 private:
-	Myst3Engine *_vm;
-
+	uint16 _id;
 	int16 _condition;
-	uint16 _fadeVar;
 	bool _enableFade;
+	uint16 _fadeVariable;
 
-	Common::Array<SpotItemFace *> _faces;
+	bool _drawn;
+	uint16 _fadeValue;
 };
 
 class SunSpot {
@@ -129,35 +72,47 @@ public:
 	float radius;
 };
 
-class Node : public Drawable {
+typedef Common::Array<SpotItem> SpotItemArray;
+typedef Common::Array<Effect *> EffectArray;
+
+class Node {
 public:
-	Node(Myst3Engine *vm, const Common::String &room, uint16 id);
-	~Node() override;
+	enum Type {
+		kFrame,
+		kMenu,
+		kCube
+	};
+
+	Node(const Common::String &room, uint16 id, Type type);
+	~Node();
 
 	const Common::String &room() const { return _room; }
+	uint16 id() const { return _id; }
+	Type type() const { return _type; }
+	SpotItemArray &spotItems() { return _spotItems; }
+	EffectArray &effects() { return _effects; }
 
-	void initEffects();
-	void resetEffects();
+	void addEffect(Effect *effect);
+	void addSpotItem(const SpotItem &spotItem);
 
-	void update();
-	void drawOverlay() override;
-
-	void loadSpotItem(uint16 id, int16 condition, bool fade);
-	SpotItemFace *loadMenuSpotItem(int16 condition, const Common::Rect &rect);
-
-	void loadSubtitles(uint32 id);
-	bool hasSubtitlesToDraw();
-
-protected:
-	virtual bool isFaceVisible(uint faceId) = 0;
-
-	Myst3Engine *_vm;
+private:
 	Common::String _room;
 	uint16 _id;
-	Face *_faces[6];
-	Common::Array<SpotItem *> _spotItems;
-	Subtitles *_subtitles;
-	Common::Array<Effect *> _effects;
+	Type _type;
+	SpotItemArray _spotItems;
+	EffectArray _effects;
+};
+
+class NodeRenderer : public Drawable {
+public:
+	virtual void draw() = 0;
+	virtual void initSpotItem(SpotItem &spotItem) = 0;
+	virtual void initSpotItemMenu(SpotItem &spotItem, const Common::Rect &faceRect) = 0;
+	virtual void updateSpotItemBitmap(uint16 spotItemId, const Graphics::Surface &surface) = 0;
+	virtual void clearSpotItemBitmap(uint16 spotItemId) = 0;
+	virtual void initEffects() {}
+	virtual void update() = 0;
+	virtual ~NodeRenderer() {}
 };
 
 } // end of namespace Myst3
