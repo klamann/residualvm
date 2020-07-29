@@ -21,6 +21,7 @@ MODULE_OBJS := \
 	movie.o \
 	myst3.o \
 	node.o \
+	node_opengl_shaders.o \
 	node_software.o \
 	puzzles.o \
 	resource_loader.o \

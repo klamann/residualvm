@@ -51,10 +51,19 @@ OpenGLTexture::OpenGLTexture() :
 	glGenTextures(1, &id);
 }
 
+OpenGLTexture::OpenGLTexture(uint w, uint h, const Graphics::PixelFormat &f) {
+	create(w, h, f);
+}
+
 OpenGLTexture::OpenGLTexture(const Graphics::Surface &surface) {
-	width = surface.w;
-	height = surface.h;
-	format = surface.format;
+	create(surface.w, surface.h, surface.format);
+	update(surface);
+}
+
+void OpenGLTexture::create(uint w, uint h, const Graphics::PixelFormat &f) {
+	width = w;
+	height = h;
+	format = f;
 	upsideDown = false;
 
 	// Pad the textures if non power of two support is unavailable
@@ -67,7 +76,7 @@ OpenGLTexture::OpenGLTexture(const Graphics::Surface &surface) {
 	}
 
 	if (format.bytesPerPixel == 4) {
-		assert(surface.format == getRGBAPixelFormat());
+		assert(format == getRGBAPixelFormat());
 
 		internalFormat = GL_RGBA;
 		sourceFormat = GL_UNSIGNED_BYTE;
@@ -93,9 +102,6 @@ OpenGLTexture::OpenGLTexture(const Graphics::Surface &surface) {
 	// has no effect on the padded sides (resulting in white lines on the edges)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	update(surface);
-
 }
 
 OpenGLTexture::~OpenGLTexture() {

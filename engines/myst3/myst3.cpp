@@ -43,6 +43,7 @@
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/resource_loader.h"
 #include "engines/myst3/node.h"
+#include "engines/myst3/node_opengl_shaders.h"
 #include "engines/myst3/node_software.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"

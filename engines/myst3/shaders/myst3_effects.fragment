@@ -1,0 +1,148 @@
+in vec2 Texcoord;
+
+OUTPUT
+
+uniform sampler2D texImage;
+uniform sampler2D texEffect1;
+uniform sampler2D texEffect2;
+uniform sampler2D texEffectPattern;
+
+uniform bool waterEffect;
+uniform bool lavaEffect;
+uniform bool magnetEffect;
+uniform bool shieldEffect;
+
+uniform int faceId;
+uniform bool frame;
+
+uniform float waterEffectPosition;
+uniform float waterEffectAttenuation;
+uniform float waterEffectFrequency;
+uniform float waterEffectAmpl;
+uniform float waterEffectAmplOffset;
+
+uniform float lavaEffectPosition;
+uniform float lavaEffectAmpl;
+
+uniform float magnetEffectPosition;
+uniform float magnetEffectAmpl;
+
+uniform float shieldEffectPosition;
+uniform float shieldEffectAmpl;
+
+const float PI = 3.14159265359;
+
+vec2 convertMaskCoordinates(vec2 textureCoordinates) {
+	if (frame) {
+		return vec2(Texcoord.x, (1 - Texcoord.y) * 360 / 640);
+	} else {
+		return Texcoord;
+	}
+}
+
+vec4 doWaterEffect(sampler2D texEffect) {
+	float timeOffset = waterEffectPosition * 2 * PI;
+	bool bottom = faceId == 1;
+
+	vec2 displacement;
+	if (bottom) {
+		vec2 ampl;
+		if (Texcoord.x < 0.5f) {
+			ampl.x = 1.0 + Texcoord.x;
+		} else {
+			ampl.x = 2.0 - Texcoord.x;
+		}
+
+		if (Texcoord.y < 0.5f) {
+			ampl.y = 1.0 + Texcoord.y;
+		} else {
+			ampl.y = 2.0 - Texcoord.y;
+		}
+
+		displacement = sin(Texcoord * waterEffectFrequency * 2 * PI + timeOffset) / 2 * ampl * waterEffectAmpl / 640;
+	} else {
+		float effectiveY;
+		if (Texcoord.y < waterEffectAttenuation) {
+			effectiveY = 0.0000001;
+		} else {
+			effectiveY = Texcoord.y / (1 - waterEffectAttenuation) - waterEffectAttenuation / (1 - waterEffectAttenuation);
+		}
+
+		float ampl3 = sin(Texcoord.x * waterEffectFrequency * 2 * PI + timeOffset) / 2.0;
+		displacement.x = ampl3 * mix(0.25, 1.25, effectiveY) * waterEffectAmpl / 640;
+
+		displacement.y = sin((1 - effectiveY) / effectiveY * waterEffectFrequency * 2 * PI + timeOffset) / 2 * effectiveY * waterEffectAmpl / 640;
+	}
+
+	float maskValue = texture(texEffect, convertMaskCoordinates(Texcoord)).r * 255 / 640;
+	float maxDisplacement = clamp(maskValue - waterEffectAmplOffset, 0, 1);
+	displacement = clamp(displacement, -maxDisplacement, maxDisplacement);
+
+	//return vec4(displacement * 200, 0, 1);
+
+	vec4 regularColor   = texture(texImage, Texcoord);
+	vec4 displacedColor = texture(texImage, Texcoord + displacement);
+	return mix(regularColor, displacedColor, 0.5);
+}
+
+vec4 doLavaEffect(sampler2D texEffect) {
+	float maskValue = texture(texEffect, convertMaskCoordinates(Texcoord)).r * 255 / 640;
+
+	vec2 displacement;
+	displacement.x = (sin((maskValue + Texcoord.y + lavaEffectPosition) * 2 * PI) + 1.0) * lavaEffectAmpl / 640;
+	displacement.y = (sin((maskValue              + lavaEffectPosition) * 2 * PI) + 1.0) * lavaEffectAmpl / 640;
+
+	displacement = clamp(displacement, 0, maskValue / 64);
+
+	return texture(texImage, Texcoord + displacement);
+}
+
+vec4 doMagnetEffect(sampler2D texEffect) {
+	float maskValue = texture(texEffect, convertMaskCoordinates(Texcoord)).r;
+
+	if (maskValue == 0) {
+		return vec4(0, 0, 0, 0);
+	}
+
+	float displacement = sin((maskValue + magnetEffectPosition) * 2 * PI) * magnetEffectAmpl / 640;
+
+	vec4 regularColor   = texture(texImage, Texcoord);
+	vec4 displacedColor = texture(texImage, Texcoord + vec2(0, displacement));
+	return mix(regularColor, displacedColor, 0.5);
+}
+
+vec4 doShieldEffect(sampler2D texEffectMask) {
+	float maskValue    = texture(texEffectMask,    convertMaskCoordinates(Texcoord)).r * 255 / 640;
+	float patternValue = texture(texEffectPattern, mod(Texcoord, 0.1) * 10).r;
+
+	if (maskValue == 0) {
+		return vec4(0, 0, 0, 0);
+	}
+
+	float displacement = (sin((patternValue + shieldEffectPosition) * 2 * PI) + 1.0) * shieldEffectAmpl / 640;
+	displacement = clamp(displacement, 0, maskValue);
+
+	return texture(texImage, Texcoord + vec2(0, displacement));
+}
+
+vec4 alphaBlend(vec4 srcColor, vec4 dstColor) {
+	return vec4(srcColor.a) * srcColor + vec4(1.0 - srcColor.a) * dstColor;
+}
+
+void main() {
+	if (waterEffect) {
+		outColor = doWaterEffect(texEffect1);
+	} else if (lavaEffect) {
+		outColor = doLavaEffect(texEffect1);
+	} else {
+		outColor = texture(texImage, Texcoord);
+	}
+
+	if (magnetEffect) {
+		outColor = alphaBlend(doMagnetEffect(texEffect2), outColor);
+	}
+
+	if (shieldEffect) {
+		outColor = alphaBlend(doShieldEffect(texEffect2), outColor);
+	}
+}

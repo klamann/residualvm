@@ -32,6 +32,7 @@
 
 #include "engines/myst3/gfx_opengl_shaders.h"
 #include "engines/myst3/gfx_opengl_texture.h"
+#include "engines/myst3/node_opengl_shaders.h"
 
 #include "graphics/colormasks.h"
 #include "graphics/renderer.h"
@@ -59,6 +60,8 @@ ShaderRenderer::ShaderRenderer(OSystem *system) :
 		Renderer(system),
 		_boxShader(nullptr),
 		_rect3dCubeShader(nullptr),
+		_effectsCubeShader(nullptr),
+		_effectsFrameShader(nullptr),
 		_rect3dShader(nullptr),
 		_boxVBO(0),
 		_cubeVBO(0),
@@ -81,6 +84,8 @@ ShaderRenderer::~ShaderRenderer() {
 
 	delete _boxShader;
 	delete _rect3dCubeShader;
+	delete _effectsCubeShader;
+	delete _effectsFrameShader;
 	delete _rect3dShader;
 }
 
@@ -107,6 +112,18 @@ Texture *ShaderRenderer::createTexture(const Graphics::Surface &surface) {
 	return new OpenGLTexture(surface);
 }
 
+OpenGL::Shader *ShaderRenderer::createCubeEffectsShaderInstance() {
+	return _effectsCubeShader->clone();
+}
+
+OpenGL::Shader *Myst3::ShaderRenderer::createFrameEffectsShaderInstance() {
+	return _effectsFrameShader->clone();
+}
+
+NodeRenderer *ShaderRenderer::createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader) {
+	return new NodeShaderRenderer(node, layout, *this, state, resourceLoader);
+}
+
 void ShaderRenderer::init() {
 	debug("Initializing OpenGL Renderer with shaders");
 
@@ -120,14 +137,22 @@ void ShaderRenderer::init() {
 
 	_cubeVBO = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices);
 
-	_rect3dCubeShader = OpenGL::Shader::fromFiles("myst3_rect3d", attributes);
-	_rect3dCubeShader->enableVertexAttribute("texcoord", _cubeVBO, 2, GL_FLOAT, GL_TRUE, 5 * sizeof(float), 0);
-	_rect3dCubeShader->enableVertexAttribute("position", _cubeVBO, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 2 * sizeof(float));
-
 	_rect3dShader = OpenGL::Shader::fromFiles("myst3_rect3d", attributes);
 	_rect3dVBO = OpenGL::Shader::createBuffer(GL_ARRAY_BUFFER, 20 * sizeof(float), NULL, GL_STREAM_DRAW);
 	_rect3dShader->enableVertexAttribute("texcoord", _rect3dVBO, 2, GL_FLOAT, GL_TRUE, 5 * sizeof(float), 0);
 	_rect3dShader->enableVertexAttribute("position", _rect3dVBO, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 2 * sizeof(float));
+
+	_rect3dCubeShader = OpenGL::Shader::fromFiles("myst3_rect3d", attributes);
+	_rect3dCubeShader->enableVertexAttribute("texcoord", _cubeVBO, 2, GL_FLOAT, GL_TRUE, 5 * sizeof(float), 0);
+	_rect3dCubeShader->enableVertexAttribute("position", _cubeVBO, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 2 * sizeof(float));
+
+	_effectsCubeShader = OpenGL::Shader::fromFiles("myst3_rect3d", "myst3_effects", attributes);
+	_effectsCubeShader->enableVertexAttribute("texcoord", _cubeVBO, 2, GL_FLOAT, GL_TRUE, 5 * sizeof(float), 0);
+	_effectsCubeShader->enableVertexAttribute("position", _cubeVBO, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 2 * sizeof(float));
+
+	_effectsFrameShader = OpenGL::Shader::fromFiles("myst3_box", "myst3_effects", attributes);
+	_effectsFrameShader->enableVertexAttribute("position", _boxVBO, 2, GL_FLOAT, GL_TRUE, 2 * sizeof(float), 0);
+	_effectsFrameShader->enableVertexAttribute("texcoord", _boxVBO, 2, GL_FLOAT, GL_TRUE, 2 * sizeof(float), 0);
 
 	setupQuadEBO();
 }

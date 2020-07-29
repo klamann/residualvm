@@ -42,6 +42,10 @@ public:
 	void clear() override;
 
 	Texture *createTexture(const Graphics::Surface &surface) override;
+	OpenGL::Shader *createCubeEffectsShaderInstance();
+	OpenGL::Shader *createFrameEffectsShaderInstance();
+
+	NodeRenderer *createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader) override;
 
 	void drawRect2D(const FloatRect &screenRect, uint32 color) override;
 	void drawTexturedRect2D(const FloatRect &screenRect, const FloatRect &textureRect, Texture &texture,
@@ -60,6 +64,8 @@ private:
 
 	OpenGL::Shader *_boxShader;
 	OpenGL::Shader *_rect3dCubeShader;
+	OpenGL::Shader *_effectsCubeShader;
+	OpenGL::Shader *_effectsFrameShader;
 	OpenGL::Shader *_rect3dShader;
 
 	GLuint _boxVBO;

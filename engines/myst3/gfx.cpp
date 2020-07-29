@@ -139,6 +139,10 @@ void Renderer::toggleFullscreen() {
 	_system->setFeatureState(OSystem::kFeatureFullscreenMode, !oldFullscreen);
 }
 
+NodeRenderer *Renderer::createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader) {
+	return new NodeSoftwareRenderer(node, layout, *this, state, resourceLoader);
+}
+
 Drawable::Drawable() {
 }
 
@@ -173,9 +177,6 @@ const Graphics::PixelFormat Texture::getRGBAPixelFormat() {
 #else
 	return Graphics::PixelFormat(4, 8, 8, 8, 8, 0, 8, 16, 24);
 #endif
-}
-NodeRenderer *Renderer::createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader) {
-	return new NodeSoftwareRenderer(node, layout, *this, state, resourceLoader);
 }
 
 Layout::Layout(OSystem &system, bool widescreenMod) :

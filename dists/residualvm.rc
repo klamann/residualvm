@@ -55,6 +55,7 @@ shaders/myst3_box.fragment       FILE    "engines/myst3/shaders/myst3_box.fragme
 shaders/myst3_box.vertex         FILE    "engines/myst3/shaders/myst3_box.vertex"
 shaders/myst3_rect3d.fragment    FILE    "engines/myst3/shaders/myst3_rect3d.fragment"
 shaders/myst3_rect3d.vertex      FILE    "engines/myst3/shaders/myst3_rect3d.vertex"
+shaders/myst3_effects.fragment   FILE    "engines/myst3/shaders/myst3_effects.fragment"
 #endif
 #if PLUGIN_ENABLED_STATIC(STARK)
 shaders/stark_actor.fragment     FILE    "engines/stark/shaders/stark_actor.fragment"
