@@ -10,9 +10,9 @@ MODULE_OBJS := \
 	effects.o \
 	gfx.o \
 	gfx_opengl.o \
-	gfx_tinygl.o \
 	gfx_opengl_shaders.o \
 	gfx_opengl_texture.o \
+	gfx_tinygl.o \
 	gfx_tinygl_texture.o \
 	hotspot.o \
 	inventory.o \

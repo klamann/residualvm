@@ -25,10 +25,10 @@
 
 namespace Myst3 {
 
-TinyGLTexture::TinyGLTexture(const Graphics::Surface *surface) {
-	width = surface->w;
-	height = surface->h;
-	format = surface->format;
+TinyGLTexture::TinyGLTexture(const Graphics::Surface &surface) {
+	width = surface.w;
+	height = surface.h;
+	format = surface.format;
 
 	if (format.bytesPerPixel == 4) {
 		internalFormat = TGL_RGBA;
@@ -58,14 +58,14 @@ TinyGLTexture::~TinyGLTexture() {
 	tglDeleteBlitImage(_blitImage);
 }
 
-void TinyGLTexture::update(const Graphics::Surface *surface) {
+void TinyGLTexture::update(const Graphics::Surface &surface) {
 	tglBindTexture(TGL_TEXTURE_2D, id);
 	tglTexImage2D(TGL_TEXTURE_2D, 0, 3, width, height, 0,
-			internalFormat, sourceFormat, const_cast<void *>(surface->getPixels())); // TESTME: Not sure if it works.
-	Graphics::tglUploadBlitImage(_blitImage, *surface, 0, false);
+			internalFormat, sourceFormat, const_cast<void *>(surface.getPixels())); // TESTME: Not sure if it works.
+	Graphics::tglUploadBlitImage(_blitImage, surface, 0, false);
 }
 
-void TinyGLTexture::updatePartial(const Graphics::Surface *surface, const Common::Rect &rect) {
+void TinyGLTexture::updatePartial(const Graphics::Surface &surface, const Common::Rect &rect) {
 	// FIXME: TinyGL does not support partial texture update
 	update(surface);
 }

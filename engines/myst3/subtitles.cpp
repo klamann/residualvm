@@ -54,7 +54,7 @@ private:
 	static Common::String fakeBidiProcessing(const Common::String &phrase);
 
 	const Graphics::Font *_font;
-	Graphics::Surface *_surface;
+	Graphics::Surface _surface;
 	float _scale;
 	uint8 *_charset;
 };
@@ -62,16 +62,12 @@ private:
 FontSubtitles::FontSubtitles(Myst3Engine *vm) :
 	Subtitles(vm),
 	_font(0),
-	_surface(0),
 	_scale(1.0),
 	_charset(nullptr) {
 }
 
 FontSubtitles::~FontSubtitles() {
-	if (_surface) {
-		_surface->free();
-		delete _surface;
-	}
+	_surface.free();
 
 	delete _font;
 	delete[] _charset;
@@ -81,7 +77,7 @@ void FontSubtitles::loadResources() {
 	// We draw the subtitles in the adequate resolution so that they are not
 	// scaled up. This is the scale factor of the current resolution
 	// compared to the original
-	_scale = getPosition().width() / (float) getOriginalPosition().width();
+	_scale = _vm->_layout->scale();
 
 #ifdef USE_FREETYPE2
 	Common::String ttfFile;
@@ -228,7 +224,7 @@ Common::String FontSubtitles::fakeBidiProcessing(const Common::String &phrase) {
 void FontSubtitles::createTexture() {
 	// Create a surface to draw the subtitles on
 	// Use RGB 565 to allow use of BDF fonts
-	if (!_surface) {
+	if (!_surface.getPixels()) {
 		uint16 width = Renderer::kOriginalWidth * _scale;
 		uint16 height = _surfaceHeight * _scale;
 
@@ -236,8 +232,7 @@ void FontSubtitles::createTexture() {
 		// surfaces with an odd width (Mesa 18 on Intel).
 		width &= ~1;
 
-		_surface = new Graphics::Surface();
-		_surface->create(width, height, Graphics::PixelFormat(2, 5, 6, 5, 0, 11, 5, 0, 0));
+		_surface.create(width, height, Graphics::PixelFormat(2, 5, 6, 5, 0, 11, 5, 0, 0));
 	}
 
 	if (!_texture) {
@@ -278,21 +273,21 @@ void FontSubtitles::drawToTexture(const Phrase *phrase) {
 	if (!font)
 		error("No available font");
 
-	if (!_texture || !_surface) {
+	if (!_texture || !_surface.getPixels()) {
 		createTexture();
 	}
 
 	// Draw the new text
-	memset(_surface->getPixels(), 0, _surface->pitch * _surface->h);
+	memset(_surface.getPixels(), 0, _surface.pitch * _surface.h);
 
 
 	if (_fontCharsetCode == 0) {
-		font->drawString(_surface, phrase->string, 0, _singleLineTop * _scale, _surface->w, 0xFFFFFFFF, Graphics::kTextAlignCenter);
+		font->drawString(&_surface, phrase->string, 0, _singleLineTop * _scale, _surface.w, 0xFFFFFFFF, Graphics::kTextAlignCenter);
 	} else {
 #ifdef USE_ICONV
 		Common::Encoding encoding = getEncodingFromCharsetCode(_fontCharsetCode);
 		Common::U32String unicode = Common::convertToU32String(encoding, phrase->string);
-		font->drawString(_surface, unicode, 0, _singleLineTop * _scale, _surface->w, 0xFFFFFFFF, Graphics::kTextAlignCenter);
+		font->drawString(&_surface, unicode, 0, _singleLineTop * _scale, _surface.w, 0xFFFFFFFF, Graphics::kTextAlignCenter);
 #else
 		warning("Unable to display charset '%d' subtitles, iconv support is not compiled in.", _fontCharsetCode);
 #endif
@@ -379,18 +374,16 @@ void MovieSubtitles::drawToTexture(const Phrase *phrase) {
 	const Graphics::Surface *surface = _bink.decodeNextFrame();
 
 	if (!_texture) {
-		_texture = _vm->_gfx->createTexture(surface);
+		_texture = _vm->_gfx->createTexture(*surface);
 	} else {
-		_texture->update(surface);
+		_texture->update(*surface);
 	}
 }
 
 Subtitles::Subtitles(Myst3Engine *vm) :
-		Window(),
 		_vm(vm),
 		_texture(0),
 		_frame(-1) {
-	_scaled = !_vm->isWideScreenModEnabled();
 }
 
 Subtitles::~Subtitles() {
@@ -474,21 +467,32 @@ void Subtitles::setFrame(int32 frame) {
 void Subtitles::drawOverlay() {
 	if (!_texture) return;
 
-	Common::Rect screen = _vm->_gfx->viewport();
-	Common::Rect bottomBorder = Common::Rect(Renderer::kOriginalWidth, _surfaceHeight);
-	bottomBorder.translate(0, _surfaceTop);
+	FloatRect bottomBorder   = _vm->_layout->bottomBorderViewport();
+	FloatRect screenViewport = _vm->_layout->unconstrainedViewport();
+
+	_vm->_gfx->setViewport(screenViewport, false);
 
 	if (_vm->isWideScreenModEnabled()) {
+
+		FloatRect blackRect = FloatRect(bottomBorder.left(), bottomBorder.bottom() - _texture->height, bottomBorder.right(), bottomBorder.bottom());
+		FloatRect blackRectNormalized = blackRect.normalize(screenViewport.size());
+
 		// Draw a black background to cover the main game frame
-		_vm->_gfx->drawRect2D(Common::Rect(screen.width(), Renderer::kBottomBorderHeight), 0xFF000000);
+		_vm->_gfx->drawRect2D(blackRectNormalized, 0xFF000000);
 
 		// Center the subtitles in the screen
-		bottomBorder.translate((screen.width() - Renderer::kOriginalWidth) / 2, 0);
+		FloatRect subtitlesRect = FloatSize(_texture->width, _texture->height)
+		        .centerIn(blackRect)
+		        .normalize(screenViewport.size());
+
+		_vm->_gfx->drawTexturedRect2D(subtitlesRect, FloatRect::unit(), *_texture);
+	} else {
+		FloatRect subtitlesRect = FloatSize(_texture->width, _texture->height)
+		        .positionIn(bottomBorder, .5f, _surfaceTop / (float)(bottomBorder.height() - _texture->height))
+		        .normalize(screenViewport.size());
+
+		_vm->_gfx->drawTexturedRect2D(subtitlesRect, FloatRect::unit(), *_texture);
 	}
-
-	Common::Rect textureRect = Common::Rect(_texture->width, _texture->height);
-
-	_vm->_gfx->drawTexturedRect2D(bottomBorder, textureRect, _texture);
 }
 
 Subtitles *Subtitles::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
@@ -514,35 +518,9 @@ Subtitles *Subtitles::create(Myst3Engine *vm, const Common::String &room, uint32
 
 void Subtitles::freeTexture() {
 	if (_texture) {
-		_vm->_gfx->freeTexture(_texture);
+		delete _texture;
 		_texture = nullptr;
 	}
-}
-
-Common::Rect Subtitles::getPosition() const {
-	Common::Rect screen = _vm->_gfx->viewport();
-
-	Common::Rect frame;
-
-	if (_vm->isWideScreenModEnabled()) {
-		frame = Common::Rect(screen.width(), Renderer::kBottomBorderHeight);
-
-		Common::Rect scenePosition = _vm->_scene->getPosition();
-		int16 top = CLIP<int16>(screen.height() - frame.height(), 0, scenePosition.bottom);
-
-		frame.translate(0, top);
-	} else {
-		frame = Common::Rect(screen.width(), screen.height() * Renderer::kBottomBorderHeight / Renderer::kOriginalHeight);
-		frame.translate(screen.left, screen.top + screen.height() * (Renderer::kTopBorderHeight + Renderer::kFrameHeight) / Renderer::kOriginalHeight);
-	}
-
-	return frame;
-}
-
-Common::Rect Subtitles::getOriginalPosition() const {
-	Common::Rect originalPosition = Common::Rect(Renderer::kOriginalWidth, Renderer::kBottomBorderHeight);
-	originalPosition.translate(0, Renderer::kTopBorderHeight + Renderer::kFrameHeight);
-	return originalPosition;
 }
 
 } // End of namespace Myst3

@@ -1,0 +1,12 @@
+in vec2 Texcoord;
+
+OUTPUT
+
+uniform sampler2D texImage;
+uniform sampler2D texEffect1;
+uniform sampler2D texEffect2;
+
+void main()
+{
+	outColor = texture(texImage, Texcoord);
+}

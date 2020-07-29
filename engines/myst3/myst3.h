@@ -57,6 +57,7 @@ class GameState;
 class HotSpot;
 class Cursor;
 class Inventory;
+class Layout;
 class Database;
 class Scene;
 class Script;
@@ -72,6 +73,7 @@ class ResourceLoader;
 class ScriptedMovie;
 class ShakeEffect;
 class RotationEffect;
+class TextRenderer;
 class Transition;
 class FrameLimiter;
 struct NodeData;
@@ -98,7 +100,9 @@ public:
 	Database *_db;
 	Sound *_sound;
 	Ambient *_ambient;
+	Layout *_layout;
 	NodeRenderer *_nodeRenderer;
+	TextRenderer *_textRenderer;
 	ResourceLoader *_resourceLoader;
 	
 	Common::RandomSource *_rnd;
@@ -235,6 +239,7 @@ private:
 	bool checkDatafiles();
 
 	void openArchives();
+	Renderer *createRenderer();
 
 	bool isInventoryVisible();
 

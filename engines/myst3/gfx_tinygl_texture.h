@@ -34,13 +34,13 @@ namespace Myst3 {
 
 class TinyGLTexture : public Texture {
 public:
-	TinyGLTexture(const Graphics::Surface *surface);
+	TinyGLTexture(const Graphics::Surface &surface);
 	virtual ~TinyGLTexture();
 
 	Graphics::BlitImage *getBlitTexture() const;
 
-	void update(const Graphics::Surface *surface) override;
-	void updatePartial(const Graphics::Surface *surface, const Common::Rect &rect) override;
+	void update(const Graphics::Surface &surface) override;
+	void updatePartial(const Graphics::Surface &surface, const Common::Rect &rect) override;
 
 	TGLuint id;
 	TGLuint internalFormat;

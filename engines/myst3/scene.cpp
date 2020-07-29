@@ -36,7 +36,6 @@
 namespace Myst3 {
 
 Scene::Scene(Myst3Engine *vm) :
-		Window(),
 		_vm(vm),
 		_mouseSpeed(50) {
 	updateMouseSpeed();
@@ -50,8 +49,8 @@ void Scene::updateCamera(Common::Point &mouse) {
 		float speed = 25 / (float)(200 - _mouseSpeed);
 
 		// Adjust the speed according to the resolution
-		Common::Rect screen = _vm->_gfx->viewport();
-		speed *= Renderer::kOriginalHeight / (float) screen.height();
+		float scale = _vm->_layout->scale();
+		speed /= scale;
 
 		if (ConfMan.getBool("mouse_inverted")) {
 			pitch += mouse.y * speed;
@@ -103,17 +102,16 @@ void Scene::updateCamera(Common::Point &mouse) {
 }
 
 void Scene::drawSunspotFlare(const SunSpot &s) {
-	Common::Rect frame = Common::Rect(Renderer::kOriginalWidth, Renderer::kFrameHeight);
-
 	uint8 a = (uint8)(s.intensity * s.radius);
 	uint8 r, g, b;
 	Graphics::colorToRGB< Graphics::ColorMasks<888> >(s.color, r, g, b);
 	uint32 color = Graphics::ARGBToColor< Graphics::ColorMasks<8888> >(a, r, g, b);
 
-	_vm->_gfx->selectTargetWindow(this, false, true);
-	_vm->_gfx->drawRect2D(frame, color);
-}
+	FloatRect viewport = _vm->_layout->frameViewport();
+	_vm->_gfx->setViewport(viewport, false);
 
+	_vm->_gfx->drawRect2D(FloatRect::unit(), color);
+}
 
 Math::Vector3d Scene::directionToVector(float pitch, float heading) {
 	Math::Vector3d v;
@@ -141,65 +139,11 @@ void Scene::updateMouseSpeed() {
 	_mouseSpeed = ConfMan.getInt("mouse_speed");
 }
 
-Common::Rect Scene::getPosition() const {
-	Common::Rect screen = _vm->_gfx->viewport();
-
-	Common::Rect frame;
-	if (_vm->isWideScreenModEnabled()) {
-		int32 viewportWidth = Renderer::kOriginalWidth;
-
-		int32 viewportHeight;
-		if (_vm->_state->getViewType() == kMenu) {
-			viewportHeight = Renderer::kOriginalHeight;
-		} else {
-			viewportHeight = Renderer::kFrameHeight;
-		}
-
-		// Aspect ratio correction
-		frame = Common::Rect(MIN<int32>(screen.width(), screen.height() * viewportWidth / viewportHeight),
-		                     MIN<int32>(screen.height(), screen.width() * viewportHeight / viewportWidth));
-
-		// Pillarboxing
-		uint left = (screen.width() - frame.width()) / 2;
-
-		uint top;
-		if (_vm->_state->getViewType() == kMenu) {
-			top = (screen.height() - frame.height()) / 2;
-		} else {
-			top = (screen.height() - frame.height()) * Renderer::kTopBorderHeight / (Renderer::kTopBorderHeight + Renderer::kBottomBorderHeight);
-		}
-
-		frame.translate(left, top);
-	} else {
-		if (_vm->_state->getViewType() != kMenu) {
-			frame = Common::Rect(screen.width(), screen.height() * Renderer::kFrameHeight / Renderer::kOriginalHeight);
-			frame.translate(screen.left, screen.top + screen.height() * Renderer::kTopBorderHeight / Renderer::kOriginalHeight);
-		} else {
-			frame = screen;
-		}
-	}
-
-	return frame;
-}
-
-Common::Rect Scene::getOriginalPosition() const {
-	Common::Rect originalPosition;
-
-	if (_vm->_state->getViewType() != kMenu) {
-		originalPosition = Common::Rect(Renderer::kOriginalWidth, Renderer::kFrameHeight);
-		originalPosition.translate(0, Renderer::kTopBorderHeight);
-	} else {
-		originalPosition = Common::Rect(Renderer::kOriginalWidth, Renderer::kOriginalHeight);
-	}
-
-	return originalPosition;
-}
-
 void Scene::screenPosToDirection(const Common::Point &screen, float &pitch, float &heading) const {
-	Common::Rect frame = getPosition();
+	FloatRect frame = _vm->_layout->frameViewport();
 
 	// Screen coords to window coords
-	Common::Point pos = screenPosToWindowPos(screen);
+	Common::Point pos = Common::Point(screen.x - frame.left(), screen.y - frame.top());
 
 	// Window coords to normalized coords
 	Math::Vector4d in;
@@ -225,6 +169,29 @@ void Scene::screenPosToDirection(const Common::Point &screen, float &pitch, floa
 
 	if (horizontalProjection.getX() > 0.0)
 		heading = 360 - heading;
+}
+
+Common::Point Scene::scalePoint(const Common::Point &screen) const {
+	FloatRect viewport;
+	FloatSize originalSize;
+	if (_vm->_state->getViewType() == kMenu) {
+		viewport = _vm->_layout->menuViewport();
+		originalSize = FloatSize(Renderer::kOriginalWidth, Renderer::kOriginalHeight);
+	} else {
+		viewport = _vm->_layout->frameViewport();
+		originalSize = FloatSize(Renderer::kOriginalWidth, Renderer::kFrameHeight);
+	}
+
+	Common::Point scaledPosition = screen;
+	scaledPosition.x -= viewport.left();
+	scaledPosition.y -= viewport.top();
+	scaledPosition.x = CLIP<int16>(scaledPosition.x, 0, viewport.width());
+	scaledPosition.y = CLIP<int16>(scaledPosition.y, 0, viewport.height());
+
+	scaledPosition.x *= originalSize.width()  / viewport.width();
+	scaledPosition.y *= originalSize.height() / viewport.height();
+
+	return scaledPosition;
 }
 
 } // end of namespace Myst3

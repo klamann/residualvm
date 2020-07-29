@@ -34,49 +34,38 @@ namespace Myst3 {
 
 class ShaderRenderer : public Renderer {
 public:
-	ShaderRenderer(OSystem *_system);
-	virtual ~ShaderRenderer();
+	ShaderRenderer(OSystem *system);
+	~ShaderRenderer() override;
 
-	virtual void init() override;
+	void init() override;
+	void setViewport(const FloatRect &viewport, bool is3d) override;
+	void clear() override;
 
-	virtual void clear() override;
-	virtual void selectTargetWindow(Window *window, bool is3D, bool scaled) override;
+	Texture *createTexture(const Graphics::Surface &surface) override;
 
-	virtual Texture *createTexture(const Graphics::Surface *surface) override;
-	virtual void freeTexture(Texture *texture) override;
+	void drawRect2D(const FloatRect &screenRect, uint32 color) override;
+	void drawTexturedRect2D(const FloatRect &screenRect, const FloatRect &textureRect, Texture &texture,
+	                        float transparency = -1.0, bool additiveBlending = false) override;
+	void drawTexturedRect3D(const Math::Vector3d &topLeft, const Math::Vector3d &bottomLeft,
+	                        const Math::Vector3d &topRight, const Math::Vector3d &bottomRight,
+	                        Texture &texture) override;
 
-	virtual void drawRect2D(const Common::Rect &rect, uint32 color) override;
-	virtual void drawTexturedRect2D(const Common::Rect &screenRect, const Common::Rect &textureRect, Texture *texture,
-	                                float transparency = -1.0, bool additiveBlending = false) override;
-	virtual void drawTexturedRect3D(const Math::Vector3d &topLeft, const Math::Vector3d &bottomLeft,
-	                                const Math::Vector3d &topRight, const Math::Vector3d &bottomRight,
-	                                Texture *texture) override;
+	void drawCube(Texture **textures) override;
 
-	virtual void drawCube(Texture **textures) override;
-	virtual void draw2DText(const Common::String &text, const Common::Point &position) override;
-
-	virtual Graphics::Surface *getScreenshot() override;
-	Texture *copyScreenshotToTexture() override;
+	Graphics::Surface *getScreenshot(const Common::Rect &screenViewport) override;
+	Texture *copyScreenshotToTexture(const Common::Rect &screenViewport) override;
 
 private:
 	void setupQuadEBO();
-	Math::Vector2d scaled(float x, float y) const;
 
 	OpenGL::Shader *_boxShader;
-	OpenGL::Shader *_cubeShader;
+	OpenGL::Shader *_rect3dCubeShader;
 	OpenGL::Shader *_rect3dShader;
-	OpenGL::Shader *_textShader;
 
 	GLuint _boxVBO;
 	GLuint _cubeVBO;
 	GLuint _rect3dVBO;
-	GLuint _textVBO;
 	GLuint _quadEBO;
-
-	Common::Rect _currentViewport;
-
-	Common::String _prevText;
-	Common::Point _prevTextPosition;
 };
 
 } // End of namespace Myst3

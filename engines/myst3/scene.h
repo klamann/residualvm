@@ -32,7 +32,7 @@ namespace Myst3 {
 class Myst3Engine;
 class SunSpot;
 
-class Scene : public Window {
+class Scene {
 private:
 	Myst3Engine *_vm;
 
@@ -41,9 +41,10 @@ private:
 public:
 	Scene(Myst3Engine *vm);
 
-	// Window API
-	Common::Rect getPosition() const override;
-	Common::Rect getOriginalPosition() const override;
+	/**
+	 * Transform a point from screen coordinates to scaled window coordinates
+	 */
+	Common::Point scalePoint(const Common::Point &screen) const;
 
 	void updateCamera(Common::Point &mouse);
 

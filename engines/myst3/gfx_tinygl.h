@@ -34,28 +34,25 @@ namespace Myst3 {
 
 class TinyGLRenderer : public Renderer {
 public:
-	TinyGLRenderer(OSystem *_system);
-	virtual ~TinyGLRenderer();
+	TinyGLRenderer(OSystem *system);
+	~TinyGLRenderer() override;
 
-	virtual void init() override;
+	void init() override;
+	void setViewport(const FloatRect &viewport, bool is3d) override;
+	void clear() override;
 
-	virtual void clear() override;
-	virtual void selectTargetWindow(Window *window, bool is3D, bool scaled) override;
+	Texture *createTexture(const Graphics::Surface &surface) override;
 
-	Texture *createTexture(const Graphics::Surface *surface) override;
-	void freeTexture(Texture *texture) override;
+	void drawRect2D(const FloatRect &screenRect, uint32 color) override;
+	void drawTexturedRect2D(const FloatRect &screenRect, const FloatRect &textureRect, Texture &texture,
+	                        float transparency = -1.0, bool additiveBlending = false) override;
+	void drawTexturedRect3D(const Math::Vector3d &topLeft, const Math::Vector3d &bottomLeft,
+	                        const Math::Vector3d &topRight, const Math::Vector3d &bottomRight,
+	                        Texture &texture) override;
 
-	virtual void drawRect2D(const Common::Rect &rect, uint32 color) override;
-	virtual void drawTexturedRect2D(const Common::Rect &screenRect, const Common::Rect &textureRect, Texture *texture,
-	                                float transparency = -1.0, bool additiveBlending = false) override;
-	virtual void drawTexturedRect3D(const Math::Vector3d &topLeft, const Math::Vector3d &bottomLeft,
-	                                const Math::Vector3d &topRight, const Math::Vector3d &bottomRight,
-	                                Texture *texture) override;
+	void drawCube(Texture **textures) override;
 
-	virtual void drawCube(Texture **textures) override;
-	virtual void draw2DText(const Common::String &text, const Common::Point &position) override;
-
-	virtual Graphics::Surface *getScreenshot() override;
+	Graphics::Surface *getScreenshot(const Common::Rect &screenViewport) override;
 
 	virtual void flipBuffer() override;
 private:

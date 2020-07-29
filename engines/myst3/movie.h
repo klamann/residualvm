@@ -68,6 +68,7 @@ protected:
 	Math::Vector3d _pBottomRight;
 	Math::Vector3d _pTopRight;
 
+	bool _is3d;
 	bool _force2d;
 	bool _forceOpaque;
 	int32 _posU;

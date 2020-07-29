@@ -33,7 +33,7 @@ namespace Myst3 {
 class Myst3Engine;
 class Texture;
 
-class Cursor : public Drawable {
+class Cursor {
 public:
 	Cursor(Myst3Engine *vm);
 	virtual ~Cursor();
@@ -42,20 +42,16 @@ public:
 	bool isPositionLocked() { return _lockedAtCenter; }
 	void lockPosition(bool lock);
 
-	/**
-	 * Get the mouse cursor position
-	 *
-	 * By default it is in 640x480 equivalent coordinates
-	 *
-	 * @param scaled When false the position is in actual game screen coordinates.
-	 * @return
-	 */
-	Common::Point getPosition(bool scaled = true);
+	/** Get the mouse cursor position */
+	Common::Point getPosition() const {
+		return _position;
+	}
+
 	void updatePosition(const Common::Point &mouse);
 
 	void getDirection(float &pitch, float &heading);
 
-	void draw() override;
+	void draw();
 	void setVisible(bool show);
 	bool isVisible();
 private:

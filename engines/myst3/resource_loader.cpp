@@ -356,7 +356,7 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 		const Graphics::Surface *bitmap = jpeg.getSurface();
 		assert(bitmap->format == Texture::getRGBAPixelFormat());
 
-		return _renderer.createTexture(bitmap);
+		return _renderer.createTexture(*bitmap);
 	}
 	case kImageFormatPNG: {
 		Image::PNGDecoder decoder;
@@ -366,7 +366,7 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 		}
 		delete imageStream;
 
-		return _renderer.createTexture(decoder.getSurface());
+		return _renderer.createTexture(*decoder.getSurface());
 	}
 	case kImageFormatTEX: {
 		TexDecoder decoder;
@@ -376,7 +376,7 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 		}
 		delete imageStream;
 
-		return _renderer.createTexture(decoder.getSurface());
+		return _renderer.createTexture(*decoder.getSurface());
 	}
 	case kImageFormatBMP: {
 		Image::BitmapDecoder decoder;
@@ -407,7 +407,7 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 			}
 		}
 
-		Texture *texture = _renderer.createTexture(surfaceRGBA);
+		Texture *texture = _renderer.createTexture(*surfaceRGBA);
 
 		surfaceRGBA->free();
 		delete surfaceRGBA;

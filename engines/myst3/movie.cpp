@@ -28,6 +28,7 @@
 #include "engines/myst3/state.h"
 #include "engines/myst3/subtitles.h"
 
+#include "common/archive.h"
 #include "common/config-manager.h"
 
 #include "graphics/colormasks.h"
@@ -42,6 +43,7 @@ Movie::Movie(Myst3Engine *vm, const Common::String &room, uint16 id) :
 		_startFrame(0),
 		_endFrame(0),
 		_texture(0),
+		_is3d(false),
 		_force2d(false),
 		_forceOpaque(false),
 		_subtitles(0),
@@ -98,7 +100,7 @@ Movie::Movie(Myst3Engine *vm, const Common::String &room, uint16 id) :
 void Movie::loadPosition(const ResourceDescription::VideoData &videoData) {
 	static const float scale = 50.0f;
 
-	_is3D = _vm->_state->getViewType() == kCube;
+	_is3d = _vm->_state->getViewType() == kCube;
 
 	Math::Vector3d planeDirection = videoData.v1;
 	planeDirection.normalize();
@@ -132,26 +134,35 @@ void Movie::loadPosition(const ResourceDescription::VideoData &videoData) {
 }
 
 void Movie::draw2d() {
-	Common::Rect screenRect = Common::Rect(_bink.getWidth(), _bink.getHeight());
-	screenRect.translate(_posU, _posV);
+	FloatRect sceneViewport;
+	if (_vm->_state->getViewType() == kMenu) {
+		sceneViewport = _vm->_layout->menuViewport();
+	} else {
+		sceneViewport = _vm->_layout->frameViewport();
+	}
+	_vm->_gfx->setViewport(sceneViewport, false);
 
-	Common::Rect textureRect = Common::Rect(_bink.getWidth(), _bink.getHeight());
+	uint sceneHeight = _vm->_state->getViewType() == kMenu ? Renderer::kOriginalHeight : Renderer::kFrameHeight;
+
+	FloatRect screenRect = FloatSize(_bink.getWidth(), _bink.getHeight())
+	        .translate(FloatPoint(_posU, _posV))
+	        .normalize(FloatSize(Renderer::kOriginalWidth, sceneHeight));
 
 	if (_forceOpaque)
-		_vm->_gfx->drawTexturedRect2D(screenRect, textureRect, _texture);
+		_vm->_gfx->drawTexturedRect2D(screenRect, FloatRect::unit(), *_texture);
 	else
-		_vm->_gfx->drawTexturedRect2D(screenRect, textureRect, _texture, (float) _transparency / 100, _additiveBlending);
+		_vm->_gfx->drawTexturedRect2D(screenRect, FloatRect::unit(), *_texture, (float) _transparency / 100, _additiveBlending);
 }
 
 void Movie::draw3d() {
-	_vm->_gfx->drawTexturedRect3D(_pTopLeft, _pBottomLeft, _pTopRight, _pBottomRight, _texture);
+	_vm->_gfx->drawTexturedRect3D(_pTopLeft, _pBottomLeft, _pTopRight, _pBottomRight, *_texture);
 }
 
 void Movie::draw() {
 	if (_force2d)
 		return;
 
-	if (_is3D) {
+	if (_is3d) {
 		draw3d();
 	} else {
 		draw2d();
@@ -164,7 +175,7 @@ void Movie::drawOverlay() {
 
 	if (_subtitles) {
 		_subtitles->setFrame(adjustFrameForRate(_bink.getCurFrame(), false));
-		_vm->_gfx->renderWindowOverlay(_subtitles);
+		_subtitles->drawOverlay();
 	}
 }
 
@@ -173,9 +184,9 @@ void Movie::drawNextFrameToTexture() {
 
 	if (frame) {
 		if (_texture)
-			_texture->update(frame);
+			_texture->update(*frame);
 		else
-			_texture = _vm->_gfx->createTexture(frame);
+			_texture = _vm->_gfx->createTexture(*frame);
 	}
 }
 
@@ -207,16 +218,14 @@ void Movie::pause(bool p) {
 }
 
 Movie::~Movie() {
-	if (_texture)
-		_vm->_gfx->freeTexture(_texture);
-
+	delete _texture;
 	delete _subtitles;
 }
 
 void Movie::setForce2d(bool b) {
 	_force2d = b;
 	if (_force2d) {
-		_is3D = false;
+		_is3d = false;
 	}
 }
 
@@ -562,9 +571,9 @@ void ProjectorMovie::update() {
 	}
 
 	if (_texture)
-		_texture->update(_frame);
+		_texture->update(*_frame);
 	else
-		_texture = _vm->_gfx->createTexture(_frame);
+		_texture = _vm->_gfx->createTexture(*_frame);
 }
 
 } // End of namespace Myst3

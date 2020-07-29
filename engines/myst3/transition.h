@@ -39,7 +39,7 @@ public:
 	void draw(TransitionType type);
 
 private:
-	void drawStep(Texture *targetTexture, Texture *sourceTexture, uint completion);
+	void drawStep(Texture &targetTexture, Texture &sourceTexture, uint completion);
 	int computeDuration();
 	void playSound();
 

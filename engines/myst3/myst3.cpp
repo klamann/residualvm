@@ -39,6 +39,7 @@
 #include "engines/myst3/database.h"
 #include "engines/myst3/debug.h"
 #include "engines/myst3/effects.h"
+#include "engines/myst3/gfx_tinygl.h"
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/resource_loader.h"
 #include "engines/myst3/node.h"
@@ -55,11 +56,22 @@
 #include "engines/myst3/ambient.h"
 #include "engines/myst3/transition.h"
 
+#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
+#include "engines/myst3/gfx_opengl_shaders.h"
+#endif
+#if defined(USE_OPENGL) && !defined(USE_GLES2)
+#include "engines/myst3/gfx_opengl.h"
+#endif
+
 #include "image/jpeg.h"
 
 #include "graphics/conversion.h"
 #include "graphics/renderer.h"
 #include "graphics/yuv_to_rgb.h"
+
+#if defined(USE_OPENGL)
+#include "graphics/opengl/context.h"
+#endif
 
 #include "math/vector2d.h"
 
@@ -67,9 +79,9 @@ namespace Myst3 {
 
 Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 		Engine(syst), _system(syst), _gameDescription(version),
-		_db(0), _console(0), _scriptEngine(0),
+		_layout(nullptr), _db(0), _console(0), _scriptEngine(0),
 		_state(0), _node(0), _nodeRenderer(0), _nodeSubtitles(0),
-		_scene(0), _resourceLoader(nullptr),
+		_scene(0), _textRenderer(nullptr), _resourceLoader(nullptr),
 		_cursor(0), _inventory(0), _gfx(0), _menu(0),
 		_rnd(0), _sound(0), _ambient(0),
 		_inputSpacePressed(false), _inputEnterPressed(false),
@@ -133,6 +145,8 @@ Myst3Engine::~Myst3Engine() {
 	delete _rnd;
 	delete _sound;
 	delete _ambient;
+	delete _textRenderer;
+	delete _layout;
 	delete _frameLimiter;
 	delete _gfx;
 }
@@ -157,11 +171,12 @@ Common::Error Myst3Engine::run() {
 		return Common::kUserCanceled;
 	}
 
-	_gfx = createRenderer(_system);
+	_gfx = createRenderer();
 	_gfx->init();
 	_gfx->clear();
 
 	_frameLimiter = new FrameLimiter(_system, ConfMan.getInt("engine_speed"));
+	_layout = new Layout(*_system, isWideScreenModEnabled());
 	_sound = new Sound(this);
 	_ambient = new Ambient(this);
 	_rnd = new Common::RandomSource("sprint");
@@ -188,9 +203,8 @@ Common::Error Myst3Engine::run() {
 	_inventory = new Inventory(this);
 
 
-	// Init the font
 	Graphics::Surface *font = loadTexture(1206);
-	_gfx->initFont(font);
+	_textRenderer = new TextRenderer(*_gfx, *font);
 	font->free();
 	delete font;
 
@@ -225,8 +239,6 @@ Common::Error Myst3Engine::run() {
 
 	tryAutoSaving(); //Attempt to autosave before exiting
 	unloadNode();
-
-	_gfx->freeFont();
 
 	// Make sure the mouse is unlocked
 	_system->lockMouse(false);
@@ -356,6 +368,53 @@ bool Myst3Engine::checkDatafiles() {
 	return true;
 }
 
+Renderer *Myst3Engine::createRenderer() {
+	Common::String rendererConfig = ConfMan.get("renderer");
+	Graphics::RendererType desiredRendererType = Graphics::parseRendererTypeCode(rendererConfig);
+	Graphics::RendererType matchingRendererType = Graphics::getBestMatchingAvailableRendererType(desiredRendererType);
+
+	bool fullscreen = ConfMan.getBool("fullscreen");
+	bool isAccelerated = matchingRendererType != Graphics::kRendererTypeTinyGL;
+
+	uint width;
+	uint height = Renderer::kOriginalHeight;
+	if (isWideScreenModEnabled()) {
+		width = Renderer::kOriginalWidth * Renderer::kOriginalHeight / Renderer::kFrameHeight;
+	} else {
+		width = Renderer::kOriginalWidth;
+	}
+
+	_system->setupScreen(width, height, fullscreen, isAccelerated);
+
+#if defined(USE_OPENGL)
+	// Check the OpenGL context actually supports shaders
+	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders && !OpenGLContext.shadersSupported) {
+		matchingRendererType = Graphics::kRendererTypeOpenGL;
+	}
+#endif
+
+	if (matchingRendererType != desiredRendererType && desiredRendererType != Graphics::kRendererTypeDefault) {
+		// Display a warning if unable to use the desired renderer
+		warning("Unable to create a '%s' renderer", rendererConfig.c_str());
+	}
+
+#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
+	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders) {
+		return new ShaderRenderer(_system);
+	}
+#endif
+#if defined(USE_OPENGL) && !defined(USE_GLES2)
+	if (matchingRendererType == Graphics::kRendererTypeOpenGL) {
+		return new OpenGLRenderer(_system);
+	}
+#endif
+	if (matchingRendererType == Graphics::kRendererTypeTinyGL) {
+		return new TinyGLRenderer(_system);
+	}
+
+	error("Unable to create a '%s' renderer", rendererConfig.c_str());
+}
+
 HotSpot *Myst3Engine::getHoveredHotspot(NodePtr nodeData, uint16 var) {
 	_state->setHotspotHovered(false);
 	_state->setHotspotActiveRect(0);
@@ -376,7 +435,7 @@ HotSpot *Myst3Engine::getHoveredHotspot(NodePtr nodeData, uint16 var) {
 		}
 	} else {
 		// get the mouse position in original game window coordinates
-		Common::Point mouse = _cursor->getPosition(false);
+		Common::Point mouse = _cursor->getPosition();
 		mouse = _scene->scalePoint(mouse);
 
 		for (uint j = 0; j < nodeData->hotspots.size(); j++) {
@@ -511,7 +570,6 @@ void Myst3Engine::processInput(bool interactive) {
 				break;
 			}
 		} else if (event.type == Common::EVENT_SCREEN_CHANGED) {
-			_gfx->computeScreenViewport();
 			_cursor->updatePosition(_eventMan->getMousePos());
 			_inventory->reflow();
 		}
@@ -700,20 +758,20 @@ void Myst3Engine::drawFrame(bool noSwap) {
 
 	if (_nodeRenderer) {
 		_nodeRenderer->update();
-		_gfx->renderDrawable(_nodeRenderer, _scene);
+		_nodeRenderer->draw();
 	}
 
 	for (int i = _movies.size() - 1; i >= 0 ; i--) {
 		_movies[i]->update();
-		_gfx->renderDrawable(_movies[i], _scene);
+		_movies[i]->draw();
 	}
 
 	if (_state->getViewType() == kMenu) {
-		_gfx->renderDrawable(_menu, _scene);
+		_menu->draw();
 	}
 
 	for (uint i = 0; i < _drawables.size(); i++) {
-		_gfx->renderDrawable(_drawables[i], _scene);
+		_drawables[i]->draw();
 	}
 
 	if (_state->getViewType() != kMenu) {
@@ -725,23 +783,23 @@ void Myst3Engine::drawFrame(bool noSwap) {
 	}
 
 	if (isInventoryVisible()) {
-		_gfx->renderWindow(_inventory);
+		_inventory->draw();
 	}
 
 	// Draw overlay 2D movies
 	for (int i = _movies.size() - 1; i >= 0 ; i--) {
-		_gfx->renderDrawableOverlay(_movies[i], _scene);
+		_movies[i]->drawOverlay();
 	}
 
 	for (uint i = 0; i < _drawables.size(); i++) {
-		_gfx->renderDrawableOverlay(_drawables[i], _scene);
+		_drawables[i]->drawOverlay();
 	}
 
 	// Draw spot subtitles
 	if (_nodeSubtitles && hasNodeSubtitlesToDraw()) {
 		uint subId = _state->getSpotSubtitle();
 		_nodeSubtitles->setFrame(15 * subId + 1);
-		_gfx->renderWindowOverlay(_nodeSubtitles);
+		_nodeSubtitles->drawOverlay();
 	}
 
 	bool cursorVisible = _cursor->isVisible();
@@ -751,8 +809,9 @@ void Myst3Engine::drawFrame(bool noSwap) {
 		cursorVisible &= !(_state->getLocationRoom() == kRoomMenu || _state->getLocationRoom() == kRoomJournals);
 	}
 
-	if (cursorVisible)
-		_gfx->renderDrawable(_cursor, _scene);
+	if (cursorVisible) {
+		_cursor->draw();
+	}
 
 	_gfx->flipBuffer();
 
@@ -879,6 +938,8 @@ void Myst3Engine::loadNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
 	_shakeEffect = ShakeEffect::create(this);
 	_rotationEffect = RotationEffect::create(this);
 
+	_nodeRenderer->initEffects();
+
 	// WORKAROUND: In Narayan, the scripts in node NACH 9 test on var 39
 	// without first reinitializing it leading to Saavedro not always giving
 	// Releeshan to the player when he is trapped between both shields.
@@ -976,7 +1037,7 @@ void Myst3Engine::loadNodeCubeFaces(uint16 nodeID) {
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
 	_node = new Node(room, nodeID, Node::kCube);
-	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
+	_nodeRenderer = _gfx->createNodeRenderer(*_node, *_layout, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::loadNodeFrame(uint16 nodeID) {
@@ -987,7 +1048,7 @@ void Myst3Engine::loadNodeFrame(uint16 nodeID) {
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
 	_node = new Node(room, nodeID, Node::kFrame);
-	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
+	_nodeRenderer = _gfx->createNodeRenderer(*_node, *_layout, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::loadNodeMenu(uint16 nodeID) {
@@ -998,7 +1059,7 @@ void Myst3Engine::loadNodeMenu(uint16 nodeID) {
 
 	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
 	_node = new Node(room, nodeID, Node::kMenu);
-	_nodeRenderer = new NodeSoftwareRenderer(*_node, *_gfx, *_state, *_resourceLoader);
+	_nodeRenderer = _gfx->createNodeRenderer(*_node, *_layout, *_state, *_resourceLoader);
 }
 
 void Myst3Engine::runScriptsFromNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
@@ -1945,7 +2006,6 @@ void Myst3Engine::pauseEngineIntern(bool pause) {
 
 	// The user may have moved the mouse or resized the screen while the engine was paused
 	if (!pause) {
-		_gfx->computeScreenViewport();
 		_cursor->updatePosition(_eventMan->getMousePos());
 		_inventory->reflow();
 	}

@@ -51,10 +51,10 @@ OpenGLTexture::OpenGLTexture() :
 	glGenTextures(1, &id);
 }
 
-OpenGLTexture::OpenGLTexture(const Graphics::Surface *surface) {
-	width = surface->w;
-	height = surface->h;
-	format = surface->format;
+OpenGLTexture::OpenGLTexture(const Graphics::Surface &surface) {
+	width = surface.w;
+	height = surface.h;
+	format = surface.format;
 	upsideDown = false;
 
 	// Pad the textures if non power of two support is unavailable
@@ -67,15 +67,21 @@ OpenGLTexture::OpenGLTexture(const Graphics::Surface *surface) {
 	}
 
 	if (format.bytesPerPixel == 4) {
-		assert(surface->format == getRGBAPixelFormat());
+		assert(surface.format == getRGBAPixelFormat());
 
 		internalFormat = GL_RGBA;
 		sourceFormat = GL_UNSIGNED_BYTE;
 	} else if (format.bytesPerPixel == 2) {
 		internalFormat = GL_RGB;
 		sourceFormat = GL_UNSIGNED_SHORT_5_6_5;
-	} else
+	} else if (format.bytesPerPixel == 1) {
+		assert(format == Graphics::PixelFormat::createFormatCLUT8());
+
+		internalFormat = GL_RED;
+		sourceFormat = GL_UNSIGNED_BYTE;
+	} else {
 		error("Unknown pixel format");
+	}
 
 	glGenTextures(1, &id);
 	glBindTexture(GL_TEXTURE_2D, id);
@@ -96,28 +102,28 @@ OpenGLTexture::~OpenGLTexture() {
 	glDeleteTextures(1, &id);
 }
 
-void OpenGLTexture::update(const Graphics::Surface *surface) {
-	updatePartial(surface, Common::Rect(surface->w, surface->h));
+void OpenGLTexture::update(const Graphics::Surface &surface) {
+	updatePartial(surface, Common::Rect(surface.w, surface.h));
 }
 
-void OpenGLTexture::updateTexture(const Graphics::Surface *surface, const Common::Rect &rect) {
-	assert(surface->format == format);
+void OpenGLTexture::updateTexture(const Graphics::Surface &surface, const Common::Rect &rect) {
+	assert(surface.format == format);
 
 	glBindTexture(GL_TEXTURE_2D, id);
 
 	if (OpenGLContext.unpackSubImageSupported) {
-		const Graphics::Surface subArea = surface->getSubArea(rect);
+		const Graphics::Surface subArea = surface.getSubArea(rect);
 
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, surface->pitch / surface->format.bytesPerPixel);
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, surface.pitch / surface.format.bytesPerPixel);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, rect.left, rect.top, subArea.w, subArea.h, internalFormat, sourceFormat, subArea.getPixels());
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 	} else {
 		// GL_UNPACK_ROW_LENGTH is not supported, don't bother and do a full texture update
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, surface->w, surface->h, internalFormat, sourceFormat, surface->getPixels());
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, surface.w, surface.h, internalFormat, sourceFormat, surface.getPixels());
 	}
 }
 
-void OpenGLTexture::updatePartial(const Graphics::Surface *surface, const Common::Rect &rect) {
+void OpenGLTexture::updatePartial(const Graphics::Surface &surface, const Common::Rect &rect) {
 	updateTexture(surface, rect);
 }
 

@@ -26,6 +26,8 @@
 #include "common/hashmap.h"
 #include "common/rect.h"
 
+#include "graphics/surface.h"
+
 #include "engines/myst3/archive.h"
 
 namespace Graphics {
@@ -36,6 +38,15 @@ namespace Myst3 {
 
 class Myst3Engine;
 class ResourceLoader;
+
+enum EffectType {
+	kEffectWater,
+	kEffectLava,
+	kEffectMagnet,
+	kEffectShake,
+	kEffectRotation,
+	kEffectShield
+};
 
 class Effect {
 public:
@@ -49,32 +60,42 @@ public:
 		bool block[10][10];
 	};
 
+	typedef Common::Array<FaceMask *> FaceMaskArray;
+
 	virtual ~Effect();
+
+	EffectType type() const { return _type; }
+	const FaceMaskArray &facesMasks() const { return _facesMasks; }
 
 	virtual bool update() = 0;
 	virtual void applyForFace(uint face, Graphics::Surface *src, Graphics::Surface *dst) = 0;
 
-	bool hasFace(uint face) { return _facesMasks.contains(face); }
+	bool hasFace(uint face) {
+		return face < _facesMasks.size() && _facesMasks[face];
+	}
+
 	Common::Rect getUpdateRectForFace(uint face);
 
 	// Public and static for use by the debug console
 	static FaceMask *loadMask(Common::SeekableReadStream *maskStream);
 
 protected:
-	Effect(Myst3Engine *vm);
+	Effect(Myst3Engine *vm, EffectType effectType);
 
 	bool loadMasks(const Common::String &room, uint32 id, Archive::ResourceType type);
 
 	Myst3Engine *_vm;
 
-	typedef Common::HashMap<uint, FaceMask *> FaceMaskMap;
-	FaceMaskMap _facesMasks;
+	EffectType _type;
+	FaceMaskArray _facesMasks;
 };
 
 class WaterEffect : public Effect {
 public:
 	static WaterEffect *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~WaterEffect();
+
+	int32 step() const { return _step; }
 
 	bool update();
 	void applyForFace(uint face, Graphics::Surface *src, Graphics::Surface *dst);
@@ -182,18 +203,20 @@ public:
 	static ShieldEffect *create(Myst3Engine *vm, uint32 id);
 	virtual ~ShieldEffect();
 
+	const Graphics::Surface &pattern() const { return _pattern; }
+
 	bool update();
 	void applyForFace(uint face, Graphics::Surface *src, Graphics::Surface *dst);
 
+	static Graphics::Surface loadPattern(Myst3Engine &vm);
 protected:
-	ShieldEffect(Myst3Engine *vm);
-	bool loadPattern();
+	ShieldEffect(Myst3Engine *vm, Graphics::Surface &pattern);
 
 	uint32 _lastTick;
 	float _amplitude;
 	float _amplitudeIncrement;
 
-	uint8 _pattern[4096];
+	Graphics::Surface _pattern;
 	int32 _displacement[256];
 };
 

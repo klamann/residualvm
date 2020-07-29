@@ -103,7 +103,7 @@ private:
 	EffectArray _effects;
 };
 
-class NodeRenderer : public Drawable {
+class NodeRenderer {
 public:
 	virtual void draw() = 0;
 	virtual void initSpotItem(SpotItem &spotItem) = 0;

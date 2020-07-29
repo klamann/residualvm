@@ -34,20 +34,20 @@ namespace Myst3 {
 
 Transition::Transition(Myst3Engine *vm) :
 		_vm(vm),
+		_frameLimiter(new FrameLimiter(g_system, ConfMan.getInt("engine_speed"))),
 		_type(kTransitionNone),
-		_sourceScreenshot(nullptr),
-		_frameLimiter(new FrameLimiter(g_system, ConfMan.getInt("engine_speed"))) {
+		_sourceScreenshot(nullptr) {
 
 	// Capture a screenshot of the source node
 	int durationTicks = computeDuration();
 	if (durationTicks) {
-		_sourceScreenshot = _vm->_gfx->copyScreenshotToTexture();
+		Common::Rect screen = _vm->_layout->screenViewportInt();
+		_sourceScreenshot = _vm->_gfx->copyScreenshotToTexture(screen);
 	}
 }
 
 Transition::~Transition() {
-	_vm->_gfx->freeTexture(_sourceScreenshot);
-
+	delete _sourceScreenshot;
 	delete _frameLimiter;
 }
 
@@ -83,14 +83,17 @@ void Transition::draw(TransitionType type) {
 
 	// Capture a screenshot of the destination node
 	_vm->drawFrame(true);
-	Texture *targetScreenshot = _vm->_gfx->copyScreenshotToTexture();
+
+	Common::Rect screen = _vm->_layout->screenViewportInt();
+	Texture *targetScreenshot = _vm->_gfx->copyScreenshotToTexture(screen);
 
 	// Compute the start and end frames for the animation
 	int startTick = _vm->_state->getTickCount();
 	uint endTick = startTick + durationTicks;
 
 	// Draw on the full screen
-	_vm->_gfx->selectTargetWindow(nullptr, false, false);
+	FloatRect viewport = _vm->_layout->screenViewport();
+	_vm->_gfx->setViewport(viewport, false);
 
 	// Draw each step until completion
 	int completion = 0;
@@ -101,7 +104,7 @@ void Transition::draw(TransitionType type) {
 
 		_vm->_gfx->clear();
 
-		drawStep(targetScreenshot, _sourceScreenshot, completion);
+		drawStep(*targetScreenshot, *_sourceScreenshot, completion);
 
 		_vm->_gfx->flipBuffer();
 		_frameLimiter->delayBeforeSwap();
@@ -124,13 +127,12 @@ void Transition::draw(TransitionType type) {
 		}
 	}
 
-	_vm->_gfx->freeTexture(targetScreenshot);
-	_vm->_gfx->freeTexture(_sourceScreenshot);
+	delete targetScreenshot;
+	delete _sourceScreenshot;
 	_sourceScreenshot = nullptr;
 }
 
-void Transition::drawStep(Texture *targetTexture, Texture *sourceTexture, uint completion) {
-	Common::Rect viewport = _vm->_gfx->viewport();
+void Transition::drawStep(Texture &targetTexture, Texture &sourceTexture, uint completion) {
 
 	switch (_type) {
 	case kTransitionNone:
@@ -138,41 +140,31 @@ void Transition::drawStep(Texture *targetTexture, Texture *sourceTexture, uint c
 
 	case kTransitionFade:
 	case kTransitionZip: {
-			Common::Rect textureRect = Common::Rect(sourceTexture->width, sourceTexture->height);
-			_vm->_gfx->drawTexturedRect2D(viewport, textureRect, sourceTexture);
-			_vm->_gfx->drawTexturedRect2D(viewport, textureRect, targetTexture, completion / 100.0);
-		}
+		_vm->_gfx->drawTexturedRect2D(FloatRect::unit(), FloatRect::unit(), sourceTexture);
+		_vm->_gfx->drawTexturedRect2D(FloatRect::unit(), FloatRect::unit(), targetTexture, completion / 100.0);
 		break;
+	}
 
 	case kTransitionLeftToRight: {
-			int16 transitionX = (viewport.width() * (100 - completion)) / 100;
-			Common::Rect sourceTextureRect(0, 0, transitionX, sourceTexture->height);
-			Common::Rect sourceScreenRect(sourceTextureRect.width(), sourceTextureRect.height());
-			sourceScreenRect.translate(viewport.left, viewport.top);
+		float transitionX = (100 - completion) / 100.f;
+		FloatRect sourceRect(.0f, .0f, transitionX, 1.f);
+		FloatRect targetRect(transitionX, .0f, 1.f, 1.f);
 
-			Common::Rect targetTextureRect(transitionX, 0, targetTexture->width, targetTexture->height);
-			Common::Rect targetScreenRect(targetTextureRect.width(), targetTextureRect.height());
-			targetScreenRect.translate(viewport.left + transitionX, viewport.top);
-
-			_vm->_gfx->drawTexturedRect2D(sourceScreenRect, sourceTextureRect, sourceTexture);
-			_vm->_gfx->drawTexturedRect2D(targetScreenRect, targetTextureRect, targetTexture);
-		}
+		_vm->_gfx->drawTexturedRect2D(sourceRect, sourceRect, sourceTexture);
+		_vm->_gfx->drawTexturedRect2D(targetRect, targetRect, targetTexture);
 		break;
+	}
 
 	case kTransitionRightToLeft: {
-			int16 transitionX = viewport.width() * completion / 100;
-			Common::Rect sourceTextureRect(transitionX, 0, sourceTexture->width, sourceTexture->height);
-			Common::Rect sourceScreenRect(sourceTextureRect.width(), sourceTextureRect.height());
-			sourceScreenRect.translate(viewport.left + transitionX, viewport.top);
+		float transitionX = completion / 100.f;
+		FloatRect sourceRect(transitionX, .0f, 1.f, 1.f);
+		FloatRect targetRect(.0f, .0f, transitionX, 1.f);
 
-			Common::Rect targetTextureRect(0, 0, transitionX, targetTexture->height);
-			Common::Rect targetScreenRect(targetTextureRect.width(), targetTextureRect.height());
-			targetScreenRect.translate(viewport.left, viewport.top);
-
-			_vm->_gfx->drawTexturedRect2D(sourceScreenRect, sourceTextureRect, sourceTexture);
-			_vm->_gfx->drawTexturedRect2D(targetScreenRect, targetTextureRect, targetTexture);
-		}
+		_vm->_gfx->drawTexturedRect2D(sourceRect, sourceRect, sourceTexture);
+		_vm->_gfx->drawTexturedRect2D(targetRect, targetRect, targetTexture);
 		break;
+	}
+
 	}
 }
 

@@ -32,17 +32,13 @@ namespace Myst3 {
 class Myst3Engine;
 class ResourceDescription;
 
-class Subtitles : public Window {
+class Subtitles {
 public:
 	static Subtitles *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~Subtitles();
 
-	// Window API
-	Common::Rect getPosition() const override;
-	Common::Rect getOriginalPosition() const override;
-
 	void setFrame(int32 frame);
-	void drawOverlay() override;
+	void drawOverlay();
 
 protected:
 	struct Phrase {

@@ -30,9 +30,34 @@
 #include "math/matrix4.h"
 #include "math/vector3d.h"
 
+#include "myst3/rect.h"
+
 namespace Myst3 {
 
-class Renderer;
+class GameState;
+class Layout;
+class Node;
+class NodeRenderer;
+class ResourceLoader;
+
+class Layout {
+public:
+	Layout(OSystem &system, bool widescreenMod);
+
+	FloatRect menuViewport() const;
+	FloatRect frameViewport() const;
+	FloatRect screenViewport() const;
+	Common::Rect screenViewportInt() const;
+	FloatRect unconstrainedViewport() const;
+	FloatRect bottomBorderViewport() const;
+	float scale() const;
+
+private:
+	FloatRect sceneViewport(FloatSize viewportSize, float verticalPositionRatio) const;
+
+	OSystem &_system;
+	bool _widescreenMod;
+};
 
 class Drawable {
 public:
@@ -41,54 +66,6 @@ public:
 
 	virtual void draw() {}
 	virtual void drawOverlay() {}
-
-	/** Should the drawable be drawn inside the active window, or is it allowed to draw on the entire screen? */
-	bool isConstrainedToWindow() const { return _isConstrainedToWindow; }
-
-	/** Whether to setup the renderer state for 2D or 3D when processing the drawable */
-	bool is3D() const { return _is3D; }
-
-	/** Whether to scale the drawable to a size equivalent to the original engine or to draw it at its native size */
-	bool isScaled() const { return _scaled; }
-
-protected:
-	bool _isConstrainedToWindow;
-	bool _is3D;
-	bool _scaled;
-};
-
-/**
- * Game screen window
- *
- * A window represents a game screen pane.
- * It allows abstracting the rendering position from the behavior.
- */
-class Window : public Drawable {
-public:
-	/**
-	 * Get the window position in screen coordinates
-	 */
-	virtual Common::Rect getPosition() const = 0;
-
-	/**
-	 * Get the window position in original (640x480) screen coordinates
-	 */
-	virtual Common::Rect getOriginalPosition() const = 0;
-
-	/**
-	 * Get the window center in screen coordinates
-	 */
-	Common::Point getCenter() const;
-
-	/**
-	 * Convert screen coordinates to window coordinates
-	 */
-	Common::Point screenPosToWindowPos(const Common::Point &screen) const;
-
-	/**
-	 * Transform a point from screen coordinates to scaled window coordinates
-	 */
-	Common::Point scalePoint(const Common::Point &screen) const;
 };
 
 class Texture {
@@ -97,13 +74,16 @@ public:
 	uint height;
 	Graphics::PixelFormat format;
 
-	virtual void update(const Graphics::Surface *surface) = 0;
-	virtual void updatePartial(const Graphics::Surface *surface, const Common::Rect &rect) = 0;
+	virtual ~Texture() {}
+
+	FloatSize size() const { return FloatSize(width, height); }
+
+	virtual void update(const Graphics::Surface &surface) = 0;
+	virtual void updatePartial(const Graphics::Surface &surface, const Common::Rect &rect) = 0;
 
 	static const Graphics::PixelFormat getRGBAPixelFormat();
 protected:
 	Texture() {}
-	virtual ~Texture() {}
 };
 
 class Renderer {
@@ -111,7 +91,8 @@ public:
 	Renderer(OSystem *system);
 	virtual ~Renderer();
 
-	virtual void init() = 0;
+	virtual void init() {}
+	virtual void setViewport(const FloatRect &viewport, bool is3d) = 0;
 	virtual void clear() = 0;
 	void toggleFullscreen();
 
@@ -120,45 +101,23 @@ public:
 	 */
 	virtual void flipBuffer() { }
 
-	virtual void initFont(const Graphics::Surface *surface);
-	virtual void freeFont();
+	virtual Texture *createTexture(const Graphics::Surface &surface) = 0;
 
-	virtual Texture *createTexture(const Graphics::Surface *surface) = 0;
-	virtual void freeTexture(Texture *texture) = 0;
+	virtual NodeRenderer *createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader);
 
-	virtual void drawRect2D(const Common::Rect &rect, uint32 color) = 0;
-	virtual void drawTexturedRect2D(const Common::Rect &screenRect, const Common::Rect &textureRect, Texture *texture,
+	virtual void drawRect2D(const FloatRect &screenRect, uint32 color) = 0;
+
+	virtual void drawTexturedRect2D(const FloatRect &screenRect, const FloatRect &textureRect, Texture &texture,
 									float transparency = -1.0, bool additiveBlending = false) = 0;
+
 	virtual void drawTexturedRect3D(const Math::Vector3d &topLeft, const Math::Vector3d &bottomLeft,
 									const Math::Vector3d &topRight, const Math::Vector3d &bottomRight,
-									Texture *texture) = 0;
+									Texture &texture) = 0;
 
 	virtual void drawCube(Texture **textures) = 0;
-	virtual void draw2DText(const Common::String &text, const Common::Point &position) = 0;
 
-	virtual Graphics::Surface *getScreenshot() = 0;
-	virtual Texture *copyScreenshotToTexture();
-
-	/** Render a Drawable in the specified window */
-	void renderDrawable(Drawable *drawable, Window *window);
-
-	/** Render a Drawable overlay in the specified window */
-	void renderDrawableOverlay(Drawable *drawable, Window *window);
-
-	/** Render the main Drawable of a Window */
-	void renderWindow(Window *window);
-
-	/** Render the main Drawable overlay of a Window */
-	void renderWindowOverlay(Window *window);
-
-	Common::Rect viewport() const;
-
-	/**
-	 * Select the window where to render
-	 *
-	 * This also sets the viewport
-	 */
-	virtual void selectTargetWindow(Window *window, bool is3D, bool scaled) = 0;
+	virtual Graphics::Surface *getScreenshot(const Common::Rect &screenViewport) = 0;
+	virtual Texture *copyScreenshotToTexture(const Common::Rect &screenViewport);
 
 	void setupCameraPerspective(float pitch, float heading, float fov);
 
@@ -174,13 +133,8 @@ public:
 	static const int kBottomBorderHeight = 90;
 	static const int kFrameHeight = 360;
 
-	void computeScreenViewport();
-
 protected:
 	OSystem *_system;
-	Texture *_font;
-
-	Common::Rect _screenViewport;
 
 	Math::Matrix4 _projectionMatrix;
 	Math::Matrix4 _modelViewMatrix;
@@ -191,9 +145,25 @@ protected:
 	static const float cubeVertices[5 * 6 * 4];
 	Math::AABB _cubeFacesAABB[6];
 
-	Common::Rect getFontCharacterRect(uint8 character);
-
 	Math::Matrix4 makeProjectionMatrix(float fov) const;
+};
+
+class TextRenderer {
+public:
+	TextRenderer(Renderer &gfx, const Graphics::Surface &fontSurface);
+	~TextRenderer();
+
+	void draw2DText(const Common::String &text, const Common::Point &position);
+
+private:
+	FloatRect getFontCharacterRect(uint8 character) const;
+
+	static const uint kCharacterWidth    = 16;
+	static const uint kCharacterAdvance  = 13;
+	static const uint kCharacterHeight   = 32;
+
+	Renderer &_gfx;
+	Texture *_fontTexture;
 };
 
 /**
@@ -217,11 +187,6 @@ private:
 	uint _speedLimitMs;
 	uint _startFrameTime;
 };
-
-Renderer *CreateGfxOpenGL(OSystem *system);
-Renderer *CreateGfxOpenGLShader(OSystem *system);
-Renderer *CreateGfxTinyGL(OSystem *system);
-Renderer *createRenderer(OSystem *system);
 
 } // End of namespace Myst3
 

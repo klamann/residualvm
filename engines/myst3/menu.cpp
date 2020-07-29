@@ -42,9 +42,6 @@ namespace Myst3 {
 Dialog::Dialog(Myst3Engine *vm, uint id):
 	_vm(vm),
 	_texture(0) {
-	// Draw on the whole screen
-	_isConstrainedToWindow = false;
-	_scaled = !_vm->isWideScreenModEnabled();
 
 	ResourceDescription countDesc = _vm->_resourceLoader->getFileDescription("DLGI", id, 0, Archive::kNumMetadata);
 	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("DLOG", id, 0, Archive::kDialogMovie);
@@ -66,32 +63,32 @@ Dialog::Dialog(Myst3Engine *vm, uint id):
 	_bink.start();
 
 	const Graphics::Surface *frame = _bink.decodeNextFrame();
-	_texture = _vm->_gfx->createTexture(frame);
+	_texture = _vm->_gfx->createTexture(*frame);
 
 	_vm->_sound->playEffect(699, 10);
 }
 
 Dialog::~Dialog() {
-	_vm->_gfx->freeTexture(_texture);
+	delete _texture;
 }
 
 void Dialog::draw() {
-	Common::Rect textureRect = Common::Rect(_texture->width, _texture->height);
-	_vm->_gfx->drawTexturedRect2D(getPosition(), textureRect, _texture);
+	FloatRect screenRect = _vm->_layout->unconstrainedViewport();
+
+	FloatRect position = getPosition()
+	        .normalize(screenRect.size());
+
+	_vm->_gfx->setViewport(screenRect, false);
+	_vm->_gfx->drawTexturedRect2D(position, FloatRect::unit(), *_texture);
 }
 
-Common::Rect Dialog::getPosition() const {
-	Common::Rect viewport;
-	if (_scaled) {
-		viewport = Common::Rect(Renderer::kOriginalWidth, Renderer::kOriginalHeight);
-	} else {
-		viewport = _vm->_gfx->viewport();
-	}
+FloatRect Dialog::getPosition() const {
+	FloatRect screenRect = _vm->_layout->unconstrainedViewport();
+	float scale = _vm->_layout->scale();
 
-	Common::Rect screenRect = Common::Rect(_texture->width, _texture->height);
-	screenRect.translate((viewport.width() - _texture->width) / 2,
-			(viewport.height() - _texture->height) / 2);
-	return screenRect;
+	return FloatSize(_texture->width, _texture->height)
+	        .scale(scale)
+	        .centerIn(screenRect);
 }
 
 ButtonsDialog::ButtonsDialog(Myst3Engine *vm, uint id):
@@ -126,7 +123,7 @@ void ButtonsDialog::draw() {
 		_bink.seekToFrame(_frameToDisplay);
 
 		const Graphics::Surface *frame = _bink.decodeNextFrame();
-		_texture->update(frame);
+		_texture->update(*frame);
 
 		_previousframe = _frameToDisplay;
 	}
@@ -144,13 +141,18 @@ int16 ButtonsDialog::update() {
 			// Compute local mouse coordinates
 			_vm->_cursor->updatePosition(event.mouse);
 			Common::Point localMouse = getRelativeMousePosition();
+			float scale = _vm->_layout->scale();
 
 			// No hovered button
 			_frameToDisplay = 0;
 
 			// Display the frame corresponding to the hovered button
 			for (uint i = 0; i < _buttonCount; i++) {
-				if (_buttons[i].contains(localMouse)) {
+				Common::Rect button = _buttons[i];
+				FloatRect buttonRect = FloatRect(button.left, button.top, button.right, button.bottom)
+				        .scale(scale);
+
+				if (buttonRect.contains(FloatPoint(localMouse.x, localMouse.y))) {
 					_frameToDisplay = i + 1;
 					break;
 				}
@@ -175,10 +177,10 @@ int16 ButtonsDialog::update() {
 }
 
 Common::Point ButtonsDialog::getRelativeMousePosition() const {
-	Common::Rect position = getPosition();
-	Common::Point localMouse =_vm->_cursor->getPosition(_scaled);
-	localMouse.x -= position.left;
-	localMouse.y -= position.top;
+	FloatRect position = getPosition();
+	Common::Point localMouse =_vm->_cursor->getPosition();
+	localMouse.x -= position.left();
+	localMouse.y -= position.top();
 	return localMouse;
 }
 
@@ -307,7 +309,8 @@ void Menu::updateMainMenu(uint16 action) {
 }
 
 Graphics::Surface *Menu::captureThumbnail() {
-	Graphics::Surface *big = _vm->_gfx->getScreenshot();
+	Common::Rect screenViewport = _vm->_layout->screenViewportInt();
+	Graphics::Surface *big = _vm->_gfx->getScreenshot(screenViewport);
 	Graphics::Surface *thumbnail = createThumbnail(big);
 	big->free();
 	delete big;
@@ -427,8 +430,9 @@ Graphics::Surface *Menu::createThumbnail(Graphics::Surface *big) {
 	small->create(GameState::kThumbnailWidth, GameState::kThumbnailHeight, Texture::getRGBAPixelFormat());
 
 	// The portion of the screenshot to keep
-	Common::Rect frame = _vm->_scene->getPosition();
-	Graphics::Surface frameSurface = big->getSubArea(frame);
+	FloatRect frame = _vm->_layout->frameViewport();
+	Common::Rect frameRect(frame.left(), frame.top(), frame.right(), frame.bottom());
+	Graphics::Surface frameSurface = big->getSubArea(frameRect);
 
 	uint32 *dst = (uint32 *)small->getPixels();
 	for (uint i = 0; i < small->h; i++) {
@@ -562,7 +566,6 @@ void PagingMenu::loadMenuSelect(uint16 item) {
 	// Update the age name
 	_saveLoadAgeName = getAgeLabel(&gameState);
 
-	// Update the save thumbnail
 	// Update the save thumbnail
 	Graphics::Surface *thumbnail = GameState::readThumbnail(saveFile);
 	_vm->_nodeRenderer->updateSpotItemBitmap(1, *thumbnail);
@@ -702,12 +705,12 @@ void PagingMenu::draw() {
 		PolarRect rect = nodeData->hotspots[i + 1].rects[0];
 
 		Common::String display = prepareSaveNameForDisplay(_saveLoadFiles[itemToDisplay]);
-		_vm->_gfx->draw2DText(display, Common::Point(rect.centerPitch, rect.centerHeading));
+		_vm->_textRenderer->draw2DText(display, Common::Point(rect.centerPitch, rect.centerHeading));
 	}
 
 	if (!_saveLoadAgeName.empty()) {
 		PolarRect rect = nodeData->hotspots[8].rects[0];
-		_vm->_gfx->draw2DText(_saveLoadAgeName, Common::Point(rect.centerPitch, rect.centerHeading));
+		_vm->_textRenderer->draw2DText(_saveLoadAgeName, Common::Point(rect.centerPitch, rect.centerHeading));
 	}
 
 	// Save screen specific
@@ -728,7 +731,7 @@ void PagingMenu::draw() {
 		}
 
 		PolarRect rect = nodeData->hotspots[9].rects[0];
-		_vm->_gfx->draw2DText(display, Common::Point(rect.centerPitch, rect.centerHeading));
+		_vm->_textRenderer->draw2DText(display, Common::Point(rect.centerPitch, rect.centerHeading));
 	}
 }
 
@@ -805,12 +808,12 @@ void AlbumMenu::draw() {
 
 	if (!_saveLoadAgeName.empty()) {
 		Common::Point p(184 - (13 * _saveLoadAgeName.size()) / 2, 305);
-		_vm->_gfx->draw2DText(_saveLoadAgeName, p);
+		_vm->_textRenderer->draw2DText(_saveLoadAgeName, p);
 	}
 
 	if (!_saveLoadTime.empty()) {
 		Common::Point p(184 - (13 * _saveLoadTime.size()) / 2, 323);
-		_vm->_gfx->draw2DText(_saveLoadTime, p);
+		_vm->_textRenderer->draw2DText(_saveLoadTime, p);
 	}
 }
 

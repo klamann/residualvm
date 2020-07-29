@@ -20,22 +20,12 @@
  *
  */
 
-#if defined(WIN32)
-#include <windows.h>
-// winnt.h defines ARRAYSIZE, but we want our own one...
-#undef ARRAYSIZE
-#endif
-
 #include "engines/myst3/gfx.h"
+#include "engines/myst3/node_software.h"
 
-#include "common/config-manager.h"
-
+#include "graphics/colormasks.h"
 #include "graphics/renderer.h"
 #include "graphics/surface.h"
-
-#ifdef USE_OPENGL
-#include "graphics/opengl/context.h"
-#endif
 
 #include "math/glmath.h"
 
@@ -69,9 +59,8 @@ const float Renderer::cubeVertices[] = {
 	1.0f, 0.0f, -320.0f,  320.0f, -320.0f
 };
 
-Renderer::Renderer(OSystem *system)
-		: _system(system),
-		  _font(nullptr) {
+Renderer::Renderer(OSystem *system) :
+		_system(system) {
 
 	// Compute the cube faces Axis Aligned Bounding Boxes
 	for (uint i = 0; i < ARRAYSIZE(_cubeFacesAABB); i++) {
@@ -84,67 +73,15 @@ Renderer::Renderer(OSystem *system)
 Renderer::~Renderer() {
 }
 
-void Renderer::initFont(const Graphics::Surface *surface) {
-	_font = createTexture(surface);
-}
+Texture *Renderer::copyScreenshotToTexture(const Common::Rect &screenViewport) {
+	Graphics::Surface *surface = getScreenshot(screenViewport);
 
-void Renderer::freeFont() {
-	if (_font) {
-		freeTexture(_font);
-		_font = nullptr;
-	}
-}
-
-Texture *Renderer::copyScreenshotToTexture() {
-	Graphics::Surface *surface = getScreenshot();
-
-	Texture *texture = createTexture(surface);
+	Texture *texture = createTexture(*surface);
 
 	surface->free();
 	delete surface;
 
 	return texture;
-}
-
-Common::Rect Renderer::getFontCharacterRect(uint8 character) {
-	uint index = 0;
-
-	if (character == ' ')
-		index = 0;
-	else if (character >= '0' && character <= '9')
-		index = 1 + character - '0';
-	else if (character >= 'A' && character <= 'Z')
-		index = 1 + 10 + character - 'A';
-	else if (character == '|')
-		index = 1 + 10 + 26;
-	else if (character == '/')
-		index = 2 + 10 + 26;
-	else if (character == ':')
-		index = 3 + 10 + 26;
-
-	return Common::Rect(16 * index, 0, 16 * (index + 1), 32);
-}
-
-Common::Rect Renderer::viewport() const {
-	return _screenViewport;
-}
-
-void Renderer::computeScreenViewport() {
-	int32 screenWidth = _system->getWidth();
-	int32 screenHeight = _system->getHeight();
-
-	if (ConfMan.getBool("widescreen_mod")) {
-		_screenViewport = Common::Rect(screenWidth, screenHeight);
-	} else {
-		// Aspect ratio correction
-		int32 viewportWidth = MIN<int32>(screenWidth, screenHeight * kOriginalWidth / kOriginalHeight);
-		int32 viewportHeight = MIN<int32>(screenHeight, screenWidth * kOriginalHeight / kOriginalWidth);
-		_screenViewport = Common::Rect(viewportWidth, viewportHeight);
-
-		// Pillarboxing
-		_screenViewport.translate((screenWidth - viewportWidth) / 2,
-			(screenHeight - viewportHeight) / 2);
-	}
 }
 
 Math::Matrix4 Renderer::makeProjectionMatrix(float fov) const {
@@ -192,53 +129,6 @@ void Renderer::flipVertical(Graphics::Surface *s) {
 	}
 }
 
-Renderer *createRenderer(OSystem *system) {
-	Common::String rendererConfig = ConfMan.get("renderer");
-	Graphics::RendererType desiredRendererType = Graphics::parseRendererTypeCode(rendererConfig);
-	Graphics::RendererType matchingRendererType = Graphics::getBestMatchingAvailableRendererType(desiredRendererType);
-
-	bool fullscreen = ConfMan.getBool("fullscreen");
-	bool isAccelerated = matchingRendererType != Graphics::kRendererTypeTinyGL;
-
-	uint width;
-	uint height = Renderer::kOriginalHeight;
-	if (ConfMan.getBool("widescreen_mod")) {
-		width = Renderer::kOriginalWidth * Renderer::kOriginalHeight / Renderer::kFrameHeight;
-	} else {
-		width = Renderer::kOriginalWidth;
-	}
-
-	system->setupScreen(width, height, fullscreen, isAccelerated);
-
-#if defined(USE_OPENGL)
-	// Check the OpenGL context actually supports shaders
-	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders && !OpenGLContext.shadersSupported) {
-		matchingRendererType = Graphics::kRendererTypeOpenGL;
-	}
-#endif
-
-	if (matchingRendererType != desiredRendererType && desiredRendererType != Graphics::kRendererTypeDefault) {
-		// Display a warning if unable to use the desired renderer
-		warning("Unable to create a '%s' renderer", rendererConfig.c_str());
-	}
-
-#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
-	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders) {
-		return CreateGfxOpenGLShader(system);
-	}
-#endif
-#if defined(USE_OPENGL) && !defined(USE_GLES2)
-	if (matchingRendererType == Graphics::kRendererTypeOpenGL) {
-		return CreateGfxOpenGL(system);
-	}
-#endif
-	if (matchingRendererType == Graphics::kRendererTypeTinyGL) {
-		return CreateGfxTinyGL(system);
-	}
-
-	error("Unable to create a '%s' renderer", rendererConfig.c_str());
-}
-
 void Renderer::toggleFullscreen() {
 	if (!_system->hasFeature(OSystem::kFeatureFullscreenToggleKeepsContext)) {
 		warning("Unable to toggle the fullscreen state because the current backend would destroy the graphics context");
@@ -249,67 +139,7 @@ void Renderer::toggleFullscreen() {
 	_system->setFeatureState(OSystem::kFeatureFullscreenMode, !oldFullscreen);
 }
 
-void Renderer::renderDrawable(Drawable *drawable, Window *window) {
-	if (drawable->isConstrainedToWindow()) {
-		selectTargetWindow(window, drawable->is3D(), drawable->isScaled());
-	} else {
-		selectTargetWindow(nullptr, drawable->is3D(), drawable->isScaled());
-	}
-	drawable->draw();
-}
-
-void Renderer::renderDrawableOverlay(Drawable *drawable, Window *window) {
-	// Overlays are always 2D
-	if (drawable->isConstrainedToWindow()) {
-		selectTargetWindow(window, drawable->is3D(), drawable->isScaled());
-	} else {
-		selectTargetWindow(nullptr, drawable->is3D(), drawable->isScaled());
-	}
-	drawable->drawOverlay();
-}
-
-void Renderer::renderWindow(Window *window) {
-	renderDrawable(window, window);
-}
-
-void Renderer::renderWindowOverlay(Window *window) {
-	renderDrawableOverlay(window, window);
-}
-
-Drawable::Drawable() :
-		_isConstrainedToWindow(true),
-		_is3D(false),
-		_scaled(true) {
-}
-
-Common::Point Window::getCenter() const {
-	Common::Rect frame = getPosition();
-
-	return Common::Point((frame.left + frame.right) / 2, (frame.top + frame.bottom) / 2);
-}
-
-Common::Point Window::screenPosToWindowPos(const Common::Point &screen) const {
-	Common::Rect frame = getPosition();
-
-	return Common::Point(screen.x - frame.left, screen.y - frame.top);
-}
-
-Common::Point Window::scalePoint(const Common::Point &screen) const {
-	Common::Rect viewport = getPosition();
-	Common::Rect originalViewport = getOriginalPosition();
-
-	Common::Point scaledPosition = screen;
-	scaledPosition.x -= viewport.left;
-	scaledPosition.y -= viewport.top;
-	scaledPosition.x = CLIP<int16>(scaledPosition.x, 0, viewport.width());
-	scaledPosition.y = CLIP<int16>(scaledPosition.y, 0, viewport.height());
-
-	if (_scaled) {
-		scaledPosition.x *= originalViewport.width() / (float) viewport.width();
-		scaledPosition.y *= originalViewport.height() / (float) viewport.height();
-	}
-
-	return scaledPosition;
+Drawable::Drawable() {
 }
 
 FrameLimiter::FrameLimiter(OSystem *system, const uint framerate) :
@@ -344,4 +174,125 @@ const Graphics::PixelFormat Texture::getRGBAPixelFormat() {
 	return Graphics::PixelFormat(4, 8, 8, 8, 8, 0, 8, 16, 24);
 #endif
 }
+NodeRenderer *Renderer::createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader) {
+	return new NodeSoftwareRenderer(node, layout, *this, state, resourceLoader);
+}
+
+Layout::Layout(OSystem &system, bool widescreenMod) :
+		_system(system),
+		_widescreenMod(widescreenMod) {
+}
+
+FloatRect Layout::menuViewport() const {
+	return sceneViewport(
+	            FloatSize(Renderer::kOriginalWidth, Renderer::kOriginalHeight),
+	            .5f
+	);
+}
+
+FloatRect Layout::frameViewport() const {
+	return sceneViewport(
+	            FloatSize(Renderer::kOriginalWidth, Renderer::kFrameHeight),
+	            Renderer::kTopBorderHeight / (float)(Renderer::kTopBorderHeight + Renderer::kBottomBorderHeight)
+	);
+}
+
+FloatRect Layout::screenViewport() const {
+	FloatSize screenSize(g_system->getWidth(), g_system->getHeight());
+
+	if (_widescreenMod) {
+		return FloatRect(screenSize);
+	}
+
+	return FloatSize(Renderer::kOriginalWidth, Renderer::kOriginalHeight)
+	        .fitIn(screenSize)
+	        .centerIn(FloatRect(screenSize));
+}
+
+Common::Rect Layout::screenViewportInt() const {
+	FloatRect screenViewPort = screenViewport();
+	return Common::Rect(screenViewPort.left(), screenViewPort.top(), screenViewPort.right(), screenViewPort.bottom());
+}
+
+FloatRect Layout::unconstrainedViewport() const {
+	FloatSize screenSize(g_system->getWidth(), g_system->getHeight());
+	return FloatRect(screenSize);
+}
+
+FloatRect Layout::bottomBorderViewport() const {
+	FloatRect screenRect = screenViewport();
+	FloatRect frameRect  = frameViewport();
+
+	if (_widescreenMod) {
+		float height = Renderer::kBottomBorderHeight * scale();
+		float bottom = CLIP<float>(frameRect.bottom() + height, 0, screenRect.bottom());
+
+		return FloatRect(frameRect.left(), bottom - height, frameRect.right(), bottom);
+	}
+
+	return FloatRect(screenRect.left(), frameRect.bottom(), screenRect.right(), screenRect.bottom());
+}
+
+float Layout::scale() const {
+	FloatRect screenRect = screenViewport();
+
+	return MIN(
+			screenRect.width()  / (float) Renderer::kOriginalWidth,
+			screenRect.height() / (float) Renderer::kOriginalHeight
+	);
+}
+
+FloatRect Layout::sceneViewport(FloatSize viewportSize, float verticalPositionRatio) const {
+	FloatRect screenRect = screenViewport();
+
+	return viewportSize
+	        .fitIn(screenRect.size())
+	        .positionIn(screenRect, .5f, verticalPositionRatio);
+}
+
+TextRenderer::TextRenderer(Renderer &gfx, const Graphics::Surface &fontSurface) :
+		_gfx(gfx) {
+	_fontTexture = gfx.createTexture(fontSurface);
+}
+
+TextRenderer::~TextRenderer() {
+	delete _fontTexture;
+}
+
+void TextRenderer::draw2DText(const Common::String &text, const Common::Point &position) {
+	// The font only has uppercase letters
+	Common::String textToDraw = text;
+	textToDraw.toUppercase();
+
+	for (uint i = 0; i < textToDraw.size(); i++) {
+		FloatRect screenRect = FloatSize(kCharacterWidth, kCharacterHeight)
+		        .translate(FloatPoint(position.x + kCharacterAdvance * i, position.y))
+		        .normalize(FloatSize(Renderer::kOriginalWidth, Renderer::kOriginalHeight));
+
+		FloatRect textureRect = getFontCharacterRect(textToDraw[i]);
+
+		_gfx.drawTexturedRect2D(screenRect, textureRect, *_fontTexture, 0.99f);
+	}
+}
+
+FloatRect TextRenderer::getFontCharacterRect(uint8 character) const {
+	uint index = 0;
+
+	if (character == ' ')
+		index = 0;
+	else if (character >= '0' && character <= '9')
+		index = 1 + character - '0';
+	else if (character >= 'A' && character <= 'Z')
+		index = 1 + 10 + character - 'A';
+	else if (character == '|')
+		index = 1 + 10 + 26;
+	else if (character == '/')
+		index = 2 + 10 + 26;
+	else if (character == ':')
+		index = 3 + 10 + 26;
+
+	return FloatRect(kCharacterWidth * index, kCharacterHeight, kCharacterWidth * (index + 1), 0)
+	        .normalize(_fontTexture->size());
+}
+
 } // End of namespace Myst3

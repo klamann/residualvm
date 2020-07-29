@@ -37,7 +37,7 @@ class SpotItem;
 
 class NodeSoftwareRenderer : public NodeRenderer {
 public:
-	NodeSoftwareRenderer(Node &node, Renderer &gfx, GameState &state, ResourceLoader &resourceLoader);
+	NodeSoftwareRenderer(Node &node, Layout &layout, Renderer &gfx, GameState &state, ResourceLoader &resourceLoader);
 	~NodeSoftwareRenderer() override;
 
 	void draw() override;
@@ -101,6 +101,7 @@ private:
 	void uploadFaceTexture(Face &face);
 
 	Node &_node;
+	Layout &_layout;
 	Renderer &_gfx;
 	GameState &_state;
 	ResourceLoader &_resourceLoader;

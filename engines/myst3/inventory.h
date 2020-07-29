@@ -36,14 +36,10 @@ namespace Myst3 {
 class Myst3Engine;
 class Texture;
 
-class Inventory : public Window {
+class Inventory {
 public:
 	Inventory(Myst3Engine *vm);
 	virtual ~Inventory();
-
-	// Window API
-	Common::Rect getPosition() const override;
-	Common::Rect getOriginalPosition() const override;
 
 	void loadFromState();
 	void updateState();
@@ -65,12 +61,12 @@ public:
 	uint16 hoveredItem();
 	void useItem(uint16 var);
 
-	void draw() override;
+	void draw();
 
 private:
 	struct InventoryItem {
 		uint16 var;
-		Common::Rect rect;
+		FloatRect rect;
 	};
 
 	typedef Common::List<InventoryItem> ItemList;
@@ -114,7 +110,7 @@ private:
 	uint16 _frame;
 	Texture *_texture;
 
-	Common::Rect getPosition();
+	FloatRect getPosition();
 };
 
 } // End of namespace Myst3

@@ -31,13 +31,12 @@
 
 namespace Myst3 {
 
-NodeSoftwareRenderer::NodeSoftwareRenderer(Node &node, Renderer &gfx, GameState &state, ResourceLoader &resourceLoader) :
+NodeSoftwareRenderer::NodeSoftwareRenderer(Node &node, Layout &layout, Renderer &gfx, GameState &state, ResourceLoader &resourceLoader) :
 		_node(node),
+		_layout(layout),
 		_gfx(gfx),
 		_state(state),
 		_resourceLoader(resourceLoader) {
-	_is3D = _node.type() == Node::kCube;
-
 	_faces.resize(_node.type() == Node::kCube ? 6 : 1);
 	for (uint faceId = 0; faceId < _faces.size(); faceId++) {
 		Face &face = _faces[faceId];
@@ -52,7 +51,7 @@ NodeSoftwareRenderer::NodeSoftwareRenderer(Node &node, Renderer &gfx, GameState 
 		}
 
 		face.bitmap  = bitmap;
-		face.texture = _gfx.createTexture(&face.bitmap);
+		face.texture = _gfx.createTexture(face.bitmap);
 
 		addFaceTextureDirtyRect(face, Common::Rect(face.bitmap.w, face.bitmap.h));
 	}
@@ -60,7 +59,7 @@ NodeSoftwareRenderer::NodeSoftwareRenderer(Node &node, Renderer &gfx, GameState 
 
 NodeSoftwareRenderer::~NodeSoftwareRenderer() {
 	for (uint i = 0; i < _faces.size(); i++) {
-		_gfx.freeTexture(_faces[i].texture);
+		delete _faces[i].texture;
 		_faces[i].bitmap.free();
 		_faces[i].finalBitmap.free();
 	}
@@ -376,9 +375,9 @@ void NodeSoftwareRenderer::update() {
 
 void NodeSoftwareRenderer::uploadFaceTexture(Face &face) {
 	if (face.finalBitmap.getPixels())
-		face.texture->updatePartial(&face.finalBitmap, face.textureDirtyRect);
+		face.texture->updatePartial(face.finalBitmap, face.textureDirtyRect);
 	else
-		face.texture->updatePartial(&face.bitmap, face.textureDirtyRect);
+		face.texture->updatePartial(face.bitmap, face.textureDirtyRect);
 
 	face.textureDirty = false;
 }
@@ -409,22 +408,22 @@ void NodeSoftwareRenderer::drawFrame(bool menu) {
 
 	Texture *texture = _faces[0].texture;
 
-	// Size and position of the frame
-	Common::Rect screenRect;
+	FloatRect sceneViewport;
 	if (menu) {
-		screenRect = Common::Rect(Renderer::kOriginalWidth, Renderer::kOriginalHeight);
+		sceneViewport = _layout.menuViewport();
 	} else {
-		screenRect = Common::Rect(Renderer::kOriginalWidth, Renderer::kFrameHeight);
+		sceneViewport = _layout.frameViewport();
 	}
 
-	// Used fragment of texture
-	Common::Rect textureRect = Common::Rect(screenRect.width(), screenRect.height());
-
-	_gfx.drawTexturedRect2D(screenRect, textureRect, texture);
+	_gfx.setViewport(sceneViewport, false);
+	_gfx.drawTexturedRect2D(FloatRect::unit(), FloatRect::unit(), *texture);
 }
 
 void NodeSoftwareRenderer::drawCube() {
 	assert(_faces.size() == 6);
+
+	FloatRect sceneViewport = _layout.frameViewport();
+	_gfx.setViewport(sceneViewport, true);
 
 	Texture *textures[6];
 	for (uint i = 0; i < _faces.size(); i++) {
