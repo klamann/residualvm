@@ -35,6 +35,7 @@ class OpenGLTexture : public Texture {
 public:
 	OpenGLTexture(uint width, uint height, const Graphics::PixelFormat &format);
 	OpenGLTexture(const Graphics::Surface &surface);
+	OpenGLTexture(uint w, uint h, uint internalFormat, const byte *data, uint dataSize);
 	OpenGLTexture();
 	~OpenGLTexture() override;
 

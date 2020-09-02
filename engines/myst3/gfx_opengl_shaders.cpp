@@ -112,6 +112,21 @@ Texture *ShaderRenderer::createTexture(const Graphics::Surface &surface) {
 	return new OpenGLTexture(surface);
 }
 
+Texture *ShaderRenderer::createTexture(const Image::DDS &dds) {
+	switch (dds.dataFormat()) {
+	case Image::DDS::kDataFormatRawBC1Unorm:
+		return new OpenGLTexture(dds.width(), dds.height(), GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, dds.rawData(), dds.rawDataSize());
+	case Image::DDS::kDataFormatRawBC2Unorm:
+		return new OpenGLTexture(dds.width(), dds.height(), GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, dds.rawData(), dds.rawDataSize());
+	case Image::DDS::kDataFormatRawBC3Unorm:
+		return new OpenGLTexture(dds.width(), dds.height(), GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, dds.rawData(), dds.rawDataSize());
+	case Image::DDS::kDataFormatRawBC7Unorm:
+		return new OpenGLTexture(dds.width(), dds.height(), GL_COMPRESSED_RGBA_BPTC_UNORM, dds.rawData(), dds.rawDataSize());
+	default:
+		return Renderer::createTexture(dds);
+	}
+}
+
 OpenGL::Shader *ShaderRenderer::createCubeEffectsShaderInstance() {
 	return _effectsCubeShader->clone();
 }

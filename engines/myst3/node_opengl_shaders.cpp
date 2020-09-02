@@ -121,7 +121,7 @@ void NodeShaderRenderer::drawSpotItemTexture(SpotItemTexture &spotItemTexture, f
 	FloatRect faceRectNorm = spotItemTexture.faceRect
 	        .normalize(faceSize);
 
-	_gfx.drawTexturedRect2D(faceRectNorm, FloatRect::unit(), *spotItemTexture.texture, transparency);
+	_gfx.drawTexturedRect2D(faceRectNorm, spotItemTexture.textureRect, *spotItemTexture.texture, transparency);
 }
 
 void NodeShaderRenderer::drawSpotItem(SpotItem &spotItem, Face &face, float transparency) {
@@ -173,10 +173,15 @@ void NodeShaderRenderer::initSpotItem(SpotItem &spotItem) {
 	for (uint i = 0; i < resources.size(); i++) {
 		const ResourceDescription &resource = resources[i];
 		ResourceDescription::SpotItemData spotItemData = resource.spotItemData();
-
-		// Assume the spotitems are scaled by the same ratio as the faces
 		Face &face = _faces[resource.face() - 1];
-		float faceScaleRatio = face.baseTexture->width / (float)Renderer::kOriginalWidth;
+
+		// Assume modded spotitems are scaled by the same ratio as the corresponding face
+		float faceScaleRatio;
+		if (resource.type() == Archive::kModdedSpotItem) {
+			faceScaleRatio = face.baseTexture->width / (float)Renderer::kOriginalWidth;
+		} else {
+			faceScaleRatio = 1.f;
+		}
 
 		SpotItemTexture spotItemTexture;
 		spotItemTexture.spotItemId = spotItem.id();
@@ -214,6 +219,23 @@ void NodeShaderRenderer::updateSpotItemBitmap(uint16 spotItemId, const Graphics:
 		SpotItemTexture &spotItemTexture = _spotItemTextures[i];
 		if (spotItemTexture.spotItemId == spotItemId) {
 			spotItemTexture.texture->update(surface);
+
+			_faces[spotItemTexture.faceId].dirty = true;
+			break;
+		}
+	}
+}
+
+void NodeShaderRenderer::updateSpotItemTexture(uint16 spotItemId, Texture *texture, const FloatRect &textureRect) {
+	assert(texture);
+
+	for (uint i = 0; i < _spotItemTextures.size(); i++) {
+		SpotItemTexture &spotItemTexture = _spotItemTextures[i];
+		if (spotItemTexture.spotItemId == spotItemId) {
+			delete spotItemTexture.texture;
+
+			spotItemTexture.texture     = static_cast<OpenGLTexture *>(texture);
+			spotItemTexture.textureRect = textureRect;
 
 			_faces[spotItemTexture.faceId].dirty = true;
 			break;

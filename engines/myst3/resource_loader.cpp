@@ -150,7 +150,15 @@ ResourceDescriptionArray ResourceLoader::listFilesMatching(const Common::String 
 }
 
 ResourceDescription ResourceLoader::getFrameBitmap(const Common::String &room, uint16 nodeId) const {
-	ResourceDescription resource = getFileDescription(room, nodeId, 1, Archive::kLocalizedFrame);
+	ResourceDescription resource = getFileDescription(room, nodeId, 0, Archive::kModdedFrame);
+
+	if (!resource.isValid()) {
+		resource = getFileDescription(room, nodeId, 1, Archive::kModdedFrame);
+	}
+
+	if (!resource.isValid()) {
+		resource = getFileDescription(room, nodeId, 1, Archive::kLocalizedFrame);
+	}
 
 	if (!resource.isValid()) {
 		resource = getFileDescription(room, nodeId, 0, Archive::kFrame);
@@ -168,7 +176,11 @@ ResourceDescription ResourceLoader::getFrameBitmap(const Common::String &room, u
 }
 
 ResourceDescription ResourceLoader::getCubeBitmap(const Common::String &room, uint16 nodeId, uint16 faceId) const {
-	ResourceDescription resource = getFileDescription(room, nodeId, faceId + 1, Archive::kCubeFace);
+	ResourceDescription resource = getFileDescription(room, nodeId, faceId + 1, Archive::kModdedCubeFace);
+
+	if (!resource.isValid()) {
+		resource = getFileDescription(room, nodeId, faceId + 1, Archive::kCubeFace);
+	}
 
 	if (!resource.isValid())
 		error("Unable to load face %d from node %d does not exist", faceId, nodeId);
@@ -176,23 +188,76 @@ ResourceDescription ResourceLoader::getCubeBitmap(const Common::String &room, ui
 	return resource;
 }
 
+ResourceDescription ResourceLoader::getMovie(const Common::String &room, uint16 movieId) const {
+	ResourceDescription resource = getFileDescription(room, movieId, 0, Archive::kModdedMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kMultitrackMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kDialogMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kStillMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kMovie);
+
+	return resource;
+}
+
+ResourceDescription ResourceLoader::getStillMovie(const Common::String &room, uint16 movieId) const {
+	ResourceDescription resource = getFileDescription(room, movieId, 0, Archive::kModdedMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kStillMovie);
+
+	return resource;
+}
+
+ResourceDescription ResourceLoader::getDialogMovie(const Common::String &room, uint16 movieId) const {
+	ResourceDescription resource = getFileDescription(room, movieId, 0, Archive::kModdedMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kDialogMovie);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, movieId, 0, Archive::kStillMovie);
+
+	return resource;
+}
+
+ResourceDescription ResourceLoader::getRawData(const Common::String &room, uint16 id) const {
+	ResourceDescription resource = getFileDescription(room, id, 0, Archive::kModdedRawData);
+
+	if (!resource.isValid())
+		resource = getFileDescription(room, id, 0, Archive::kRawData);
+
+	return resource;
+}
+
 ResourceDescriptionArray ResourceLoader::listSpotItemImages(const Common::String &room, uint16 spotItemId) const {
 	ResourceDescriptionArray resources;
-	resources.push_back(listFilesMatching(room, spotItemId, Archive::kLocalizedSpotItem));
-	resources.push_back(listFilesMatching(room, spotItemId, Archive::kSpotItem));
+	resources.push_back(listFilesMatching(room, spotItemId, Archive::kModdedSpotItem));
+
+	if (resources.empty()) {
+		resources.push_back(listFilesMatching(room, spotItemId, Archive::kLocalizedSpotItem));
+		resources.push_back(listFilesMatching(room, spotItemId, Archive::kSpotItem));
+	}
 
 	return resources;
 }
 
 Common::String ResourceLoader::computeExtractedFileName(const Archive::DirectoryEntry &directoryEntry,
                                                         const Archive::DirectorySubEntry &directorySubEntry) {
-	return computeExtractedFileName(directoryEntry, directorySubEntry, "jpg", "data");
+	return computeExtractedFileName(directoryEntry, directorySubEntry, "jpg", "data", "dds");
 }
 
 Common::String ResourceLoader::computeExtractedFileName(const Archive::DirectoryEntry &directoryEntry,
                                                         const Archive::DirectorySubEntry &directorySubEntry,
                                                         const char *imagesFileExtension,
-                                                        const char *cursorFileExtension) {
+                                                        const char *cursorFileExtension,
+                                                        const char *moddedImagesFileExtension) {
 	bool multipleSubEntriesWithSameKey = false;
 	for (uint i = 0; i < directoryEntry.subentries.size(); i++) {
 		const Archive::DirectorySubEntry &otherSubEntry = directoryEntry.subentries[i];
@@ -216,6 +281,11 @@ Common::String ResourceLoader::computeExtractedFileName(const Archive::Directory
 	case Archive::kLocalizedSpotItem:
 		extension = imagesFileExtension;
 		break;
+	case Archive::kModdedCubeFace:
+	case Archive::kModdedFrame:
+	case Archive::kModdedSpotItem:
+		extension = moddedImagesFileExtension;
+		break;
 	case Archive::kWaterEffectMask:
 		extension = "water";
 		break;
@@ -232,12 +302,17 @@ Common::String ResourceLoader::computeExtractedFileName(const Archive::Directory
 	case Archive::kStillMovie:
 	case Archive::kDialogMovie:
 	case Archive::kMultitrackMovie:
+	case Archive::kModdedMovie:
 		printFace = false;
 		extension = "bik";
 		break;
 	case Archive::kRawData:
 		printFace = false;
 		extension = cursorFileExtension;
+		break;
+	case Archive::kModdedRawData:
+		printFace = false;
+		extension = moddedImagesFileExtension;
 		break;
 	default:
 		extension = Common::String::format("%d", directorySubEntry.type);
@@ -323,14 +398,22 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 	Common::String name = Common::String::format("%s-%d-%d", resource.room().c_str(), resource.index(), resource.face());
 
 	if (_loadExternalFiles) {
-		name = ResourceLoader::computeExtractedFileName(resource.directoryEntry(), resource.directorySubEntry(), "png", "png");
+		name = ResourceLoader::computeExtractedFileName(resource.directoryEntry(), resource.directorySubEntry(), "dds", "dds", "dds");
 		imageStream = openFile(name);
 		if (imageStream) {
-			imageFormat = kImageFormatPNG;
+			imageFormat = kImageFormatDDS;
 		}
 
 		if (!imageStream) {
-			name = ResourceLoader::computeExtractedFileName(resource.directoryEntry(), resource.directorySubEntry(), "jpg", "jpg");
+			name = ResourceLoader::computeExtractedFileName(resource.directoryEntry(), resource.directorySubEntry(), "png", "png", "png");
+			imageStream = openFile(name);
+			if (imageStream) {
+				imageFormat = kImageFormatPNG;
+			}
+		}
+
+		if (!imageStream) {
+			name = ResourceLoader::computeExtractedFileName(resource.directoryEntry(), resource.directorySubEntry(), "jpg", "jpg", "jpg");
 			imageStream = openFile(name);
 			if (imageStream) {
 				imageFormat = kImageFormatJPEG;
@@ -339,8 +422,15 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 	}
 
 	if (!imageStream) {
-		imageFormat = defaultImageFormat;
 		imageStream = resource.createReadStream();
+		if (resource.type() == Archive::kModdedCubeFace
+		        || resource.type() == Archive::kModdedFrame
+		        || resource.type() == Archive::kModdedSpotItem
+		        || resource.type() == Archive::kModdedRawData) {
+			imageFormat = kImageFormatDDS;
+		} else {
+			imageFormat = defaultImageFormat;
+		}
 	}
 
 	switch (imageFormat) {
@@ -367,6 +457,17 @@ Texture *TextureLoader::load(const ResourceDescription &resource, TextureLoader:
 		delete imageStream;
 
 		return _renderer.createTexture(*decoder.getSurface());
+	}
+	case kImageFormatDDS: {
+		Image::DDS decoder;
+
+		if (!decoder.load(*imageStream, name)) {
+			error("Failed to decode DDS %s", name.c_str());
+		}
+		delete imageStream;
+
+		return _renderer.createTexture(decoder);
+
 	}
 	case kImageFormatTEX: {
 		TexDecoder decoder;

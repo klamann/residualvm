@@ -40,27 +40,21 @@ Movie::Movie(Myst3Engine *vm, const Common::String &room, uint16 id) :
 		_id(id),
 		_posU(0),
 		_posV(0),
+		_posWidth(0),
+		_posHeight(0),
 		_startFrame(0),
 		_endFrame(0),
 		_texture(0),
 		_is3d(false),
 		_force2d(false),
 		_forceOpaque(false),
+		_resourceType(Archive::kMovie),
 		_subtitles(0),
 		_volume(0),
 		_additiveBlending(false),
 		_transparency(100) {
 
-	ResourceDescription binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kMultitrackMovie);
-
-	if (!binkDesc.isValid())
-		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kDialogMovie);
-
-	if (!binkDesc.isValid())
-		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kStillMovie);
-
-	if (!binkDesc.isValid())
-		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kMovie);
+	ResourceDescription binkDesc = _vm->_resourceLoader->getMovie(room, id);
 
 	// Check whether the video is optional
 	bool optional = false;
@@ -76,9 +70,14 @@ Movie::Movie(Myst3Engine *vm, const Common::String &room, uint16 id) :
 			return;
 	}
 
+	_resourceType = binkDesc.type();
 	loadPosition(binkDesc.videoData());
 
-	Common::SeekableReadStream *binkStream = binkDesc.createReadStream();
+	Common::SeekableReadStream *binkStream = SearchMan.createReadStreamForMember(Common::String::format("output/%s-%d.bik", room.c_str(), id));
+	if (!binkStream) {
+		binkStream = binkDesc.createReadStream();
+	}
+
 	_bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	_bink.setSoundType(Audio::Mixer::kSFXSoundType);
 	_bink.loadStream(binkStream);
@@ -129,8 +128,10 @@ void Movie::loadPosition(const ResourceDescription::VideoData &videoData) {
 	_pBottomRight = planeOrigin + vBottom + vRight;
 	_pTopRight = planeOrigin + vTop + vRight;
 
-	_posU = videoData.u;
-	_posV = videoData.v;
+	_posU      = videoData.u;
+	_posV      = videoData.v;
+	_posWidth  = videoData.width;
+	_posHeight = videoData.height;
 }
 
 void Movie::draw2d() {
@@ -144,7 +145,16 @@ void Movie::draw2d() {
 
 	uint sceneHeight = _vm->_state->getViewType() == kMenu ? Renderer::kOriginalHeight : Renderer::kFrameHeight;
 
+	// Upscaling ratio
+	float scaleRatio;
+	if (_resourceType == Archive::kModdedMovie) {
+		scaleRatio = _bink.getWidth() / (float)_posWidth;
+	} else {
+		scaleRatio = 1.f;
+	}
+
 	FloatRect screenRect = FloatSize(_bink.getWidth(), _bink.getHeight())
+	        .scale(1 / scaleRatio)
 	        .translate(FloatPoint(_posU, _posV))
 	        .normalize(FloatSize(Renderer::kOriginalWidth, sceneHeight));
 

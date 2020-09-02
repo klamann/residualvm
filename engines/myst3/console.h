@@ -55,6 +55,7 @@ private:
 	bool Cmd_Go(int argc, const char **argv);
 	bool Cmd_Extract(int argc, const char **argv);
 	bool Cmd_DumpArchive(int argc, const char **argv);
+	bool Cmd_ModArchive(int argc, const char **argv);
 	bool Cmd_DumpMasks(int argc, const char **argv);
 	bool Cmd_FillInventory(int argc, const char **argv);
 };

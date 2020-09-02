@@ -25,12 +25,14 @@
 
 #include "engines/engine.h"
 
+#include "engines/myst3/archive.h"
+
 #include "common/array.h"
 #include "common/ptr.h"
 #include "common/system.h"
 #include "common/random.h"
 
-#include "engines/myst3/archive.h"
+#include "graphics/renderer.h"
 
 namespace Graphics {
 struct Surface;
@@ -68,6 +70,7 @@ class Menu;
 class Node;
 class NodeRenderer;
 class Sound;
+class Texture;
 class Ambient;
 class ResourceLoader;
 class ScriptedMovie;
@@ -119,6 +122,7 @@ public:
 	uint32 getGameLocalizationType() const;
 	bool isTextLanguageEnglish() const;
 	bool isWideScreenModEnabled() const;
+	bool isAssetsModEnabled() const;
 
 	bool canSaveGameStateCurrently() override;
 	bool canLoadGameStateCurrently() override;
@@ -128,7 +132,6 @@ public:
 	Common::Error saveGameState(int slot, const Common::String &desc) override;
 	Common::Error saveGameState(const Common::String &desc, const Graphics::Surface *thumbnail);
 
-	Graphics::Surface *loadTexture(uint16 id);
 	static Graphics::Surface decodeJpeg(const ResourceDescription &jpegDesc);
 
 	void goToNode(uint16 nodeID, TransitionType transition);
@@ -238,7 +241,8 @@ private:
 
 	bool checkDatafiles();
 
-	void openArchives();
+	ResourceLoader *openArchives();
+	Graphics::RendererType selectRenderer() const;
 	Renderer *createRenderer();
 
 	bool isInventoryVisible();

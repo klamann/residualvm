@@ -53,6 +53,10 @@ public:
 
 	ResourceDescription getFrameBitmap(const Common::String &room, uint16 nodeId) const;
 	ResourceDescription getCubeBitmap(const Common::String &room, uint16 nodeId, uint16 faceId) const;
+	ResourceDescription getMovie(const Common::String &room, uint16 movieId) const;
+	ResourceDescription getStillMovie(const Common::String &room, uint16 movieId) const;
+	ResourceDescription getDialogMovie(const Common::String &room, uint16 movieId) const;
+	ResourceDescription getRawData(const Common::String &room, uint16 id) const;
 	ResourceDescriptionArray listSpotItemImages(const Common::String &room, uint16 spotItemId) const;
 
 	static Common::String computeExtractedFileName(const Archive::DirectoryEntry &directoryEntry,
@@ -60,7 +64,8 @@ public:
 	static Common::String computeExtractedFileName(const Archive::DirectoryEntry &directoryEntry,
 	                                               const Archive::DirectorySubEntry &directorySubEntry,
 	                                               const char *imagesFileExtension,
-	                                               const char *cursorFileExtension);
+	                                               const char *cursorFileExtension,
+	                                               const char *moddedImagesFileExtension);
 
 private:
 	Common::StringArray _mods;
@@ -89,6 +94,7 @@ public:
 		kImageFormatJPEG,
 		kImageFormatPNG,
 		kImageFormatBMP,
+		kImageFormatDDS,
 		kImageFormatTEX
 	};
 

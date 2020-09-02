@@ -41,7 +41,10 @@ public:
 	void setViewport(const FloatRect &viewport, bool is3d) override;
 	void clear() override;
 
+	bool supportsCompressedTextures() const override { return true; }
+
 	Texture *createTexture(const Graphics::Surface &surface) override;
+	Texture *createTexture(const Image::DDS &dds) override;
 	OpenGL::Shader *createCubeEffectsShaderInstance();
 	OpenGL::Shader *createFrameEffectsShaderInstance();
 

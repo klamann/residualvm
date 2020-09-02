@@ -36,6 +36,8 @@ namespace Myst3 {
 
 struct CursorData {
 	uint32 nodeID;
+	uint16 width;
+	uint16 height;
 	uint16 hotspotX;
 	uint16 hotspotY;
 	float transparency;
@@ -43,19 +45,19 @@ struct CursorData {
 };
 
 static const CursorData availableCursors[] = {
-	{ 1000,  8,  8, 0.25f, 0.00f }, // Default cursor
-	{ 1001,  8,  8, 0.50f, 0.50f }, // On top of inventory item
-	{ 1002,  8,  8, 0.50f, 0.50f }, // Drag cursor
-	{ 1003,  1,  5, 0.50f, 0.50f },
-	{ 1004, 14,  5, 0.50f, 0.50f },
-	{ 1005, 16, 14, 0.50f, 0.50f },
-	{ 1006, 16, 14, 0.50f, 0.50f },
-	{ 1007,  8,  8, 0.55f, 0.55f },
-	{ 1000,  8,  8, 0.25f, 0.00f }, // Default cursor
-	{ 1001,  8,  8, 0.50f, 0.50f },
-	{ 1011, 16, 16, 0.50f, 0.50f },
-	{ 1000,  6,  1, 0.50f, 0.50f },
-	{ 1000,  8,  8, 0.00f, 0.25f }  // Invisible cursor
+	{ 1000, 16, 16,  8,  8, 0.25f, 0.00f }, // Default cursor
+	{ 1001, 16, 16,  8,  8, 0.50f, 0.50f }, // On top of inventory item
+	{ 1002, 16, 16,  8,  8, 0.50f, 0.50f }, // Drag cursor
+	{ 1003, 16, 16,  1,  5, 0.50f, 0.50f },
+	{ 1004, 16, 16, 14,  5, 0.50f, 0.50f },
+	{ 1005, 24, 24, 16, 14, 0.50f, 0.50f },
+	{ 1006, 24, 24, 16, 14, 0.50f, 0.50f },
+	{ 1007, 16, 16,  8,  8, 0.55f, 0.55f },
+	{ 1000, 16, 16,  8,  8, 0.25f, 0.00f }, // Default cursor
+	{ 1001, 16, 16,  8,  8, 0.50f, 0.50f },
+	{ 1011, 32, 32, 16, 16, 0.50f, 0.50f },
+	{ 1000, 16, 16,  6,  1, 0.50f, 0.50f },
+	{ 1000, 16, 16,  8,  8, 0.00f, 0.25f }  // Invisible cursor
 };
 
 Cursor::Cursor(Myst3Engine *vm) :
@@ -86,7 +88,7 @@ void Cursor::loadAvailableCursors() {
 		if (_textures.contains(availableCursors[i].nodeID)) continue;
 
 		// Load the cursor bitmap
-		ResourceDescription cursorDesc = _vm->_resourceLoader->getFileDescription("GLOB", availableCursors[i].nodeID, 0, Archive::kRawData);
+		ResourceDescription cursorDesc = _vm->_resourceLoader->getRawData("GLOB", availableCursors[i].nodeID);
 		if (!cursorDesc.isValid())
 			error("Cursor %d does not exist", availableCursors[i].nodeID);
 
@@ -171,8 +173,9 @@ void Cursor::draw() {
 	// Rect where to draw the cursor
 	FloatRect viewport = _vm->_layout->unconstrainedViewport();
 	float scale = _vm->_layout->scale();
+	scale *= cursor.width / (float)texture->width;
 
-	FloatRect cursorRect = FloatSize(texture->width, texture->height)
+	FloatRect cursorRect = texture->size()
 	        .scale(scale)
 	        .translate(FloatPoint(_position.x - cursor.hotspotX * scale, _position.y - cursor.hotspotY * scale))
 	        .normalize(viewport.size());

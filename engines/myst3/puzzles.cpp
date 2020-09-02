@@ -1142,23 +1142,29 @@ void Puzzles::journalSaavedro(int16 move) {
 
 		// Does the left page need to be loaded from a different node?
 		if (nodeLeft != nodeRight) {
-			ResourceDescription jpegDesc = _vm->_resourceLoader->getFileDescription("JRNL", nodeLeft, 0, Archive::kFrame);
-
-			if (!jpegDesc.isValid())
-				error("Frame %d does not exist", nodeLeft);
-
-			Graphics::Surface leftNodeBitmap = Myst3Engine::decodeJpeg(jpegDesc);
-
-			Common::Rect leftRect(leftNodeBitmap.w / 2, leftNodeBitmap.h);
-			const Graphics::Surface leftArea = leftNodeBitmap.getSubArea(leftRect);
+			ResourceDescription resource = _vm->_resourceLoader->getFrameBitmap("JRNL", nodeLeft);
 
 			// Create a spotitem covering the left half of the screen
 			// to display the left page
 			Common::Rect leftFrameHalf(Renderer::kOriginalWidth / 2, Renderer::kFrameHeight);
 			_vm->addMenuSpotItem(999, 1, leftFrameHalf);
-			_vm->_nodeRenderer->updateSpotItemBitmap(999, leftArea);
 
-			leftNodeBitmap.free();
+			if (resource.type() == Archive::kModdedFrame) {
+				TextureLoader textureLoader(*_vm->_gfx);
+				Texture *leftPageTexture = textureLoader.load(resource, TextureLoader::kImageFormatJPEG);
+
+				_vm->_nodeRenderer->updateSpotItemTexture(999, leftPageTexture, FloatRect(0.f, 0.f, 0.5f, 1.f));
+
+			} else {
+				Graphics::Surface leftNodeBitmap = Myst3Engine::decodeJpeg(resource);
+
+				Common::Rect leftRect(leftNodeBitmap.w / 2, leftNodeBitmap.h);
+				const Graphics::Surface leftArea = leftNodeBitmap.getSubArea(leftRect);
+
+				_vm->_nodeRenderer->updateSpotItemBitmap(999, leftArea);
+
+				leftNodeBitmap.free();
+			}
 		}
 	}
 }

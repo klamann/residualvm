@@ -49,8 +49,10 @@ public:
 
 	uint16 getId() { return _id; }
 	bool isVideoLoaded() {return _bink.isVideoLoaded(); }
-	void setPosU(int32 v) { _posU = v; }
+	void setPosU(int32 u) { _posU = u; }
 	void setPosV(int32 v) { _posV = v; }
+	void setPosWidth(int32 width) { _posWidth = width; }
+	void setPosHeight(int32 height) { _posHeight = height; }
 	void setForce2d(bool b);
 	void setForceOpaque(bool b) { _forceOpaque = b; }
 	void setStartFrame(int32 v);
@@ -71,8 +73,11 @@ protected:
 	bool _is3d;
 	bool _force2d;
 	bool _forceOpaque;
+	Archive::ResourceType _resourceType;
 	int32 _posU;
 	int32 _posV;
+	int32 _posWidth;
+	int32 _posHeight;
 
 	Video::BinkDecoder _bink;
 	Texture *_texture;

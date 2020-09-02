@@ -52,6 +52,7 @@ public:
 	void initSpotItem(SpotItem &spotItem) override;
 	void initSpotItemMenu(SpotItem &spotItem, const Common::Rect &faceRect) override;
 	void updateSpotItemBitmap(uint16 spotItemId, const Graphics::Surface &surface) override;
+	void updateSpotItemTexture(uint16 spotItemId, Texture *texture, const FloatRect &textureRect) override;
 	void clearSpotItemBitmap(uint16 spotItemId) override;
 	void initEffects() override;
 	void update() override;
@@ -72,8 +73,9 @@ private:
 		uint16 faceId;
 		FloatRect faceRect;
 		OpenGLTexture *texture;
+		FloatRect textureRect;
 
-		SpotItemTexture() : spotItemId(0), faceId(0), texture(nullptr) {}
+		SpotItemTexture() : spotItemId(0), faceId(0), texture(nullptr), textureRect(0.f, 0.f, 1.f, 1.f) {}
 	};
 
 	struct EffectFace {

@@ -22,10 +22,13 @@
 
 #include "engines/myst3/gfx.h"
 #include "engines/myst3/node_software.h"
+#include "engines/myst3/resource_loader.h"
 
 #include "graphics/colormasks.h"
 #include "graphics/renderer.h"
 #include "graphics/surface.h"
+
+#include "image/dds.h"
 
 #include "math/glmath.h"
 
@@ -179,6 +182,15 @@ const Graphics::PixelFormat Texture::getRGBAPixelFormat() {
 #endif
 }
 
+Texture *Renderer::createTexture(const Image::DDS &dds) {
+	switch (dds.dataFormat()) {
+	case Image::DDS::kDataFormatMipMaps:
+		return createTexture(dds.getMipMaps()[0]);
+	default:
+		error("Unhandled DDS dataformat: %d when decoding %s", dds.dataFormat(), dds.name().c_str());
+	}
+}
+
 Layout::Layout(OSystem &system, bool widescreenMod) :
 		_system(system),
 		_widescreenMod(widescreenMod) {
@@ -251,9 +263,16 @@ FloatRect Layout::sceneViewport(FloatSize viewportSize, float verticalPositionRa
 	        .positionIn(screenRect, .5f, verticalPositionRatio);
 }
 
-TextRenderer::TextRenderer(Renderer &gfx, const Graphics::Surface &fontSurface) :
-		_gfx(gfx) {
-	_fontTexture = gfx.createTexture(fontSurface);
+TextRenderer::TextRenderer(Renderer &gfx, ResourceLoader &resourceLoader) :
+		_gfx(gfx),
+		_fontTexture(nullptr) {
+
+	ResourceDescription fontDesc = resourceLoader.getRawData("GLOB", 1206);
+	if (!fontDesc.isValid())
+		error("The font texture, GLOB-1206 was not found");
+
+	TextureLoader textureLoader(_gfx);
+	_fontTexture = textureLoader.load(fontDesc, TextureLoader::kImageFormatTEX);
 }
 
 TextRenderer::~TextRenderer() {
@@ -293,7 +312,7 @@ FloatRect TextRenderer::getFontCharacterRect(uint8 character) const {
 		index = 3 + 10 + 26;
 
 	return FloatRect(kCharacterWidth * index, kCharacterHeight, kCharacterWidth * (index + 1), 0)
-	        .normalize(_fontTexture->size());
+	        .normalize(FloatSize(1024.f, 32.f));
 }
 
 } // End of namespace Myst3

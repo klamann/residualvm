@@ -86,8 +86,6 @@ private:
 	Texture *_texture;
 	ItemList _inventory;
 
-	void initializeTexture();
-
 	bool hasItem(uint16 var);
 
 	void openBook(uint16 age, uint16 room, uint16 node);
@@ -109,6 +107,7 @@ private:
 
 	uint16 _frame;
 	Texture *_texture;
+	FloatSize _screenSize;
 
 	FloatRect getPosition();
 };

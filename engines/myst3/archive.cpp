@@ -257,7 +257,8 @@ Common::SeekableReadStream *ResourceDescription::createReadStream() const {
 
 ResourceDescription::SpotItemData ResourceDescription::spotItemData() const {
 	assert(_subentry->type == Archive::kSpotItem
-	       || _subentry->type == Archive::kLocalizedSpotItem);
+	       || _subentry->type == Archive::kLocalizedSpotItem
+	       || _subentry->type == Archive::kModdedSpotItem);
 
 	SpotItemData spotItemData;
 	spotItemData.u = _subentry->metadata[0];
@@ -269,7 +270,9 @@ ResourceDescription::SpotItemData ResourceDescription::spotItemData() const {
 ResourceDescription::VideoData ResourceDescription::videoData() const {
 	VideoData videoData;
 
-	if (_subentry->type == Archive::kMovie || _subentry->type == Archive::kMultitrackMovie) {
+	if (_subentry->type == Archive::kMovie
+	    || _subentry->type == Archive::kMultitrackMovie
+	    || _subentry->type == Archive::kModdedMovie) {
 		videoData.v1.setValue(0, static_cast<int32>(_subentry->metadata[0]) * 0.000001f);
 		videoData.v1.setValue(1, static_cast<int32>(_subentry->metadata[1]) * 0.000001f);
 		videoData.v1.setValue(2, static_cast<int32>(_subentry->metadata[2]) * 0.000001f);

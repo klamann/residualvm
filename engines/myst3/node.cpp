@@ -49,4 +49,8 @@ Node::~Node() {
 	_effects.clear();
 }
 
+void NodeRenderer::updateSpotItemTexture(uint16 spotItemId, Texture *texture, const FloatRect &textureRect) {
+	error("updateSpotItemTexture is not supported for this renderer");
+}
+
 } // end of namespace Myst3

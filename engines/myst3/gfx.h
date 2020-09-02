@@ -32,6 +32,10 @@
 
 #include "myst3/rect.h"
 
+namespace Image {
+class DDS;
+}
+
 namespace Myst3 {
 
 class GameState;
@@ -96,12 +100,15 @@ public:
 	virtual void clear() = 0;
 	void toggleFullscreen();
 
+	virtual bool supportsCompressedTextures() const { return false; }
+
 	/**
 	 *  Swap the buffers, making the drawn screen visible
 	 */
 	virtual void flipBuffer() { }
 
 	virtual Texture *createTexture(const Graphics::Surface &surface) = 0;
+	virtual Texture *createTexture(const Image::DDS &dds);
 
 	virtual NodeRenderer *createNodeRenderer(Node &node, Layout &layout, GameState &state, ResourceLoader &resourceLoader);
 
@@ -125,7 +132,7 @@ public:
 
 	Math::Matrix4 getMvpMatrix() const { return _mvpMatrix; }
 
-	void flipVertical(Graphics::Surface *s);
+	static void flipVertical(Graphics::Surface *s);
 
 	static const int kOriginalWidth = 640;
 	static const int kOriginalHeight = 480;
@@ -150,7 +157,7 @@ protected:
 
 class TextRenderer {
 public:
-	TextRenderer(Renderer &gfx, const Graphics::Surface &fontSurface);
+	TextRenderer(Renderer &gfx, ResourceLoader &resourceLoader);
 	~TextRenderer();
 
 	void draw2DText(const Common::String &text, const Common::Point &position);

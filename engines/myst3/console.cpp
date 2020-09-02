@@ -31,22 +31,24 @@
 #include "engines/myst3/state.h"
 
 #include "common/file.h"
+#include "common/md5.h"
 
 namespace Myst3 {
 
 Console::Console(Myst3Engine *vm) : GUI::Debugger(), _vm(vm) {
-	registerCmd("infos",				WRAP_METHOD(Console, Cmd_Infos));
-	registerCmd("lookAt",				WRAP_METHOD(Console, Cmd_LookAt));
-	registerCmd("initScript",			WRAP_METHOD(Console, Cmd_InitScript));
-	registerCmd("var",				WRAP_METHOD(Console, Cmd_Var));
-	registerCmd("listNodes",			WRAP_METHOD(Console, Cmd_ListNodes));
-	registerCmd("run",				WRAP_METHOD(Console, Cmd_Run));
-	registerCmd("runOp",				WRAP_METHOD(Console, Cmd_RunOp));
-	registerCmd("go",				WRAP_METHOD(Console, Cmd_Go));
-	registerCmd("extract",				WRAP_METHOD(Console, Cmd_Extract));
-	registerCmd("fillInventory",			WRAP_METHOD(Console, Cmd_FillInventory));
-	registerCmd("dumpArchive",			WRAP_METHOD(Console, Cmd_DumpArchive));
-	registerCmd("dumpMasks",			WRAP_METHOD(Console, Cmd_DumpMasks));
+	registerCmd("infos",         WRAP_METHOD(Console, Cmd_Infos));
+	registerCmd("lookAt",        WRAP_METHOD(Console, Cmd_LookAt));
+	registerCmd("initScript",    WRAP_METHOD(Console, Cmd_InitScript));
+	registerCmd("var",           WRAP_METHOD(Console, Cmd_Var));
+	registerCmd("listNodes",     WRAP_METHOD(Console, Cmd_ListNodes));
+	registerCmd("run",           WRAP_METHOD(Console, Cmd_Run));
+	registerCmd("runOp",         WRAP_METHOD(Console, Cmd_RunOp));
+	registerCmd("go",            WRAP_METHOD(Console, Cmd_Go));
+	registerCmd("extract",       WRAP_METHOD(Console, Cmd_Extract));
+	registerCmd("fillInventory", WRAP_METHOD(Console, Cmd_FillInventory));
+	registerCmd("dumpArchive",   WRAP_METHOD(Console, Cmd_DumpArchive));
+	registerCmd("modArchive",    WRAP_METHOD(Console, Cmd_ModArchive));
+	registerCmd("dumpMasks",     WRAP_METHOD(Console, Cmd_DumpMasks));
 }
 
 Console::~Console() {
@@ -387,6 +389,168 @@ bool Console::Cmd_DumpArchive(int argc, const char **argv) {
 	archive->visit(dumper);
 
 	delete archive;
+
+	return true;
+}
+
+class ModdingArchiveVisitor : public ArchiveVisitor {
+public:
+	ModdingArchiveVisitor(ArchiveWriter &archiveWriter, bool compress, GUI::Debugger &debugger) :
+			_archive(nullptr),
+			_archiveWriter(archiveWriter),
+			_compress(compress),
+			_debugger(debugger) {
+	}
+
+	void visitArchive(Archive &archive) override {
+		_archive = &archive;
+	}
+
+	void visitDirectorySubEntry(Archive::DirectoryEntry &directoryEntry, Archive::DirectorySubEntry &directorySubEntry) override {
+		Archive::ResourceType moddedType = directorySubEntry.type;
+		bool compress = false;
+		switch (directorySubEntry.type) {
+		case Archive::kCubeFace:
+			moddedType = Archive::kModdedCubeFace;
+			compress = true;
+			break;
+		case Archive::kSpotItem:
+		case Archive::kLocalizedSpotItem:
+			moddedType = Archive::kModdedSpotItem;
+			compress = true;
+			break;
+		case Archive::kFrame:
+		case Archive::kLocalizedFrame:
+			moddedType = Archive::kModdedFrame;
+			compress = true;
+			break;
+		case Archive::kRawData:
+			moddedType = Archive::kModdedRawData;
+			compress = true;
+			break;
+		case Archive::kMovie:
+		case Archive::kStillMovie:
+		case Archive::kDialogMovie:
+		case Archive::kMultitrackMovie:
+			moddedType = Archive::kModdedMovie;
+			break;
+		default:
+			break;
+		}
+
+		Archive::DirectorySubEntry moddedDirectorySubEntry = directorySubEntry;
+		moddedDirectorySubEntry.type = moddedType;
+
+		Common::String fileName = ResourceLoader::computeExtractedFileName(directoryEntry, moddedDirectorySubEntry);
+		if (fileName.empty()) return;
+
+		Common::FSNode extractedFile = Common::FSNode(fileName);
+		if (!extractedFile.exists()) return;
+
+		// Checksum the original and modded files
+		Common::SeekableReadStream *originalStream = _archive->dumpToMemory(directorySubEntry.offset, directorySubEntry.size);
+		Common::String originalMd5 = Common::computeStreamMD5AsString(*originalStream);
+		delete originalStream;
+
+		Common::SeekableReadStream *moddedStream = extractedFile.createReadStream();
+		Common::String moddedMd5 = Common::computeStreamMD5AsString(*moddedStream);
+		delete moddedStream;
+
+		// Ignore files that have not changed
+		if (moddedMd5 == originalMd5) return;
+
+		MetadataArray moddedMetadata = directorySubEntry.metadata;
+
+		// We need to store the original video size to be able
+		//  to compute a scaling ratio when rendering.
+		if (directorySubEntry.type == Archive::kStillMovie
+		    || directorySubEntry.type == Archive::kDialogMovie) {
+			assert(moddedMetadata.empty());
+
+			Common::SeekableReadStream *binkStream = _archive->dumpToMemory(directorySubEntry.offset, directorySubEntry.size);
+			Video::BinkDecoder bink;
+			bink.loadStream(binkStream);
+
+			moddedMetadata.resize(10);
+			moddedMetadata[8] = bink.getWidth();
+			moddedMetadata[9] = bink.getHeight();
+		}
+
+		_debugger.debugPrintf("Adding '%s' to the modded archive (md5sum %s)\n", fileName.c_str(), moddedMd5.c_str());
+
+		_archiveWriter.addFile(
+		            directoryEntry.roomName,
+		            directoryEntry.index,
+		            directorySubEntry.face,
+		            moddedType,
+		            moddedMetadata,
+		            fileName,
+		            _compress && compress
+		);
+	}
+
+private:
+	Archive *_archive;
+	ArchiveWriter &_archiveWriter;
+	bool _compress;
+	GUI::Debugger &_debugger;
+};
+
+bool Console::Cmd_ModArchive(int argc, const char **argv) {
+	if (argc != 2 && argc != 3) {
+		debugPrintf("Build a new game archive from a folder of modded files.\n");
+		debugPrintf("The source folder, must be named 'dump', and be located in the location ResidualVM was launched from\n");
+		debugPrintf("Usage :\n");
+		debugPrintf("modArchive [file name] [compress]\n");
+		return true;
+	}
+
+	// Is the archive multi-room
+	Common::String temp = Common::String(argv[1]);
+	if (temp.size() < 4) {
+		debugPrintf("Invalid file name '%s'\n", argv[1]);
+		return true;
+	}
+
+	Common::String room;
+	if (temp.hasSuffixIgnoreCase(".m3a")) {
+		room = Common::String(argv[1], 4);
+		room.toUppercase();
+	}
+
+	bool compress = true;
+	if (argc >= 3) {
+		if (!Common::parseBool(argv[2], compress)) {
+			debugPrintf("Invalid boolean value '%s'\n", argv[2]);
+			return true;
+		}
+	}
+
+	Archive *archive = Archive::createFromFile(argv[1], room);
+	if (!archive) {
+		debugPrintf("Can't open archive with name '%s'\n", argv[1]);
+		return true;
+	}
+
+	ArchiveWriter archiveWriter(room);
+	ModdingArchiveVisitor moddingVisitor(archiveWriter, compress, *this);
+	archive->visit(moddingVisitor);
+	delete archive;
+
+	if (archiveWriter.empty()) {
+		debugPrintf("No modded files were found to put in the archive\n");
+		return true;
+	}
+
+	Common::String outFileName = Common::String::format("%s.patch", argv[1]);
+
+	Common::DumpFile outFile;
+	if (!outFile.open(outFileName, true))
+		error("Unable to open file '%s' for writing", outFileName.c_str());
+
+	archiveWriter.write(outFile);
+
+	debugPrintf("The mod archive '%s' has been written\n", outFileName.c_str());
 
 	return true;
 }

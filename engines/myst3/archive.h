@@ -55,7 +55,12 @@ public:
 		kLocalizedSpotItem  =  69,
 		kLocalizedFrame     =  70,
 		kMultitrackMovie    =  72,
-		kDialogMovie        =  74
+		kDialogMovie        =  74,
+		kModdedCubeFace     = 100,
+		kModdedSpotItem     = 105,
+		kModdedFrame        = 106,
+		kModdedRawData      = 107,
+		kModdedMovie        = 108
 	};
 
 	struct DirectorySubEntry {
@@ -202,7 +207,6 @@ private:
 	Common::String _room;
 	Common::Array<DirectoryEntry> _directory;
 };
-
 
 } // End of namespace Myst3
 

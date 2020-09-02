@@ -109,6 +109,7 @@ public:
 	virtual void initSpotItem(SpotItem &spotItem) = 0;
 	virtual void initSpotItemMenu(SpotItem &spotItem, const Common::Rect &faceRect) = 0;
 	virtual void updateSpotItemBitmap(uint16 spotItemId, const Graphics::Surface &surface) = 0;
+	virtual void updateSpotItemTexture(uint16 spotItemId, Texture *texture, const FloatRect &textureRect);
 	virtual void clearSpotItemBitmap(uint16 spotItemId) = 0;
 	virtual void initEffects() {}
 	virtual void update() = 0;

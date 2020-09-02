@@ -60,6 +60,33 @@ OpenGLTexture::OpenGLTexture(const Graphics::Surface &surface) {
 	update(surface);
 }
 
+OpenGLTexture::OpenGLTexture(uint w, uint h, uint iformat, const byte *data, uint dataSize) {
+	width = w;
+	height = h;
+	upsideDown = false;
+	internalFormat = iformat;
+
+	// Pad the textures if non power of two support is unavailable
+	if (OpenGLContext.NPOTSupported) {
+		internalHeight = height;
+		internalWidth = width;
+	} else {
+		internalHeight = upperPowerOfTwo(height);
+		internalWidth = upperPowerOfTwo(width);
+	}
+
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+	glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFormat, internalWidth, internalHeight, 0, dataSize, data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// TODO: If non power of two textures are unavailable this clamping
+	// has no effect on the padded sides (resulting in white lines on the edges)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
 void OpenGLTexture::create(uint w, uint h, const Graphics::PixelFormat &f) {
 	width = w;
 	height = h;

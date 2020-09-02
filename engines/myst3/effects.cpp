@@ -85,7 +85,7 @@ bool Effect::loadMasks(const Common::String &room, uint32 id, Archive::ResourceT
 
 			// Frame masks are vertically flipped for some reason
 			if (isFrame) {
-				_vm->_gfx->flipVertical(_facesMasks[i]->surface);
+				Renderer::flipVertical(_facesMasks[i]->surface);
 			}
 
 			delete data;

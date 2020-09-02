@@ -41,13 +41,10 @@ namespace Myst3 {
 
 Dialog::Dialog(Myst3Engine *vm, uint id):
 	_vm(vm),
-	_texture(0) {
+	_texture(nullptr) {
 
 	ResourceDescription countDesc = _vm->_resourceLoader->getFileDescription("DLGI", id, 0, Archive::kNumMetadata);
-	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("DLOG", id, 0, Archive::kDialogMovie);
-	if (!movieDesc.isValid()) {
-		movieDesc = _vm->_resourceLoader->getFileDescription("DLOG", id, 0, Archive::kStillMovie);
-	}
+	ResourceDescription movieDesc = _vm->_resourceLoader->getDialogMovie("DLOG", id);
 
 	if (!movieDesc.isValid() || !countDesc.isValid())
 		error("Unable to load dialog %d", id);
@@ -64,6 +61,14 @@ Dialog::Dialog(Myst3Engine *vm, uint id):
 
 	const Graphics::Surface *frame = _bink.decodeNextFrame();
 	_texture = _vm->_gfx->createTexture(*frame);
+
+	if (movieDesc.type() == Archive::kModdedMovie) {
+		// For modded resources, the screen size is that from the original file
+		 ResourceDescription::VideoData videoData = movieDesc.videoData();
+		_screenSize = FloatSize(videoData.width, videoData.height);
+	} else {
+		_screenSize = _texture->size();
+	}
 
 	_vm->_sound->playEffect(699, 10);
 }
@@ -86,15 +91,15 @@ FloatRect Dialog::getPosition() const {
 	FloatRect screenRect = _vm->_layout->unconstrainedViewport();
 	float scale = _vm->_layout->scale();
 
-	return FloatSize(_texture->width, _texture->height)
+	return _screenSize
 	        .scale(scale)
 	        .centerIn(screenRect);
 }
 
 ButtonsDialog::ButtonsDialog(Myst3Engine *vm, uint id):
 	Dialog(vm, id),
-	_frameToDisplay(0),
-	_previousframe(0) {
+	_previousframe(0),
+	_frameToDisplay(0) {
 
 	loadButtons();
 }

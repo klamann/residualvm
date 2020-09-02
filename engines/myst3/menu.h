@@ -177,6 +177,7 @@ protected:
 	Myst3Engine *_vm;
 	Video::BinkDecoder _bink;
 	Texture *_texture;
+	FloatSize _screenSize;
 
 	uint _buttonCount;
 };

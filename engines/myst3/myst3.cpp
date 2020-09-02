@@ -126,6 +126,8 @@ Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 	SearchMan.addSubDirectoryMatching(gameDataDir, "MYST3BIN/M3DATA/TEXT");
 	SearchMan.addSubDirectoryMatching(gameDataDir, "MYST3BIN/M3DATA/TEXT/NTSC");
 	SearchMan.addSubDirectoryMatching(gameDataDir, "MYST3BIN/M3DATA/TEXT/PAL");
+
+	ConfMan.registerDefault("enable_external_assets", false);
 }
 
 Myst3Engine::~Myst3Engine() {
@@ -154,10 +156,8 @@ Myst3Engine::~Myst3Engine() {
 
 bool Myst3Engine::hasFeature(EngineFeature f) const {
 	// The TinyGL renderer does not support arbitrary resolutions for now
-	Common::String rendererConfig = ConfMan.get("renderer");
-	Graphics::RendererType desiredRendererType = Graphics::parseRendererTypeCode(rendererConfig);
-	Graphics::RendererType matchingRendererType = Graphics::getBestMatchingAvailableRendererType(desiredRendererType);
-	bool softRenderer = matchingRendererType == Graphics::kRendererTypeTinyGL;
+	Graphics::RendererType renderer = selectRenderer();
+	bool softRenderer = renderer == Graphics::kRendererTypeTinyGL;
 
 	return
 		(f == kSupportsRTL) ||
@@ -197,17 +197,11 @@ Common::Error Myst3Engine::run() {
 	settingsInitDefaults();
 	syncSoundSettings();
 
-	_resourceLoader = new ResourceLoader();
-	openArchives();
+	_resourceLoader = openArchives();
 
 	_cursor = new Cursor(this);
 	_inventory = new Inventory(this);
-
-
-	Graphics::Surface *font = loadTexture(1206);
-	_textRenderer = new TextRenderer(*_gfx, *font);
-	font->free();
-	delete font;
+	_textRenderer = new TextRenderer(*_gfx, *_resourceLoader);
 
 	if (ConfMan.hasKey("save_slot")) {
 		// Load game from specified slot, if any
@@ -247,7 +241,11 @@ Common::Error Myst3Engine::run() {
 	return Common::kNoError;
 }
 
-void Myst3Engine::openArchives() {
+static bool modsCompare(const Common::FSNode &a, const Common::FSNode &b) {
+	return a.getName() < b.getName();
+}
+
+ResourceLoader *Myst3Engine::openArchives() {
 	// The language of the menus is always the same as the executable
 	// The English CD version can only display English text
 	// The non English CD versions can display their localized language and English
@@ -329,20 +327,40 @@ void Myst3Engine::openArchives() {
 		textLanguage += "X";
 	}
 
+	ResourceLoader *resourceLoader = new ResourceLoader();
+
+	// Load all the mods
+	if (isAssetsModEnabled()) {
+		const Common::FSNode gameDataDir(ConfMan.get("path"));
+		const Common::FSNode modsDir = gameDataDir.getChild("mods");
+		if (modsDir.exists()) {
+			Common::FSList list;
+			modsDir.getChildren(list);
+
+			Common::sort(list.begin(), list.end(), modsCompare);
+
+			for (uint i = 0; i < list.size(); i++) {
+				resourceLoader->addMod(list[i].getName());
+			}
+		}
+	}
+
 	// Load all the override files in the search path
 	Common::ArchiveMemberList overrides;
 	SearchMan.listMatchingMembers(overrides, "*.m3o");
 	for (Common::ArchiveMemberList::const_iterator it = overrides.begin(); it != overrides.end(); it++) {
-		_resourceLoader->addArchive(it->get()->getName(), false);
+		resourceLoader->addArchive(it->get()->getName(), false);
 	}
 
-	_resourceLoader->addArchive(textLanguage + ".m3t", true);
+	resourceLoader->addArchive(textLanguage + ".m3t", true);
 
 	if (getGameLocalizationType() != kLocMonolingual || getPlatform() == Common::kPlatformXbox || getGameLanguage() == Common::HE_ISR) {
-		_resourceLoader->addArchive(menuLanguage + ".m3u", true);
+		resourceLoader->addArchive(menuLanguage + ".m3u", true);
 	}
 
-	_resourceLoader->addArchive("RSRC.m3r", true);
+	resourceLoader->addArchive("RSRC.m3r", true);
+
+	return resourceLoader;
 }
 
 bool Myst3Engine::isTextLanguageEnglish() const {
@@ -369,13 +387,46 @@ bool Myst3Engine::checkDatafiles() {
 	return true;
 }
 
+Graphics::RendererType Myst3Engine::selectRenderer() const {
+	Common::String rendererConfig = ConfMan.get("renderer");
+	Graphics::RendererType desiredRendererType = Graphics::parseRendererTypeCode(rendererConfig);
+
+	Graphics::RendererType neededRendererType = desiredRendererType;
+	// Modding only works with the OpenGL Shaders renderer
+	if (ConfMan.getBool("enable_assets_mod")
+	        || ConfMan.getBool("enable_external_assets")) {
+		neededRendererType = Graphics::kRendererTypeOpenGLShaders;
+	}
+
+	switch (neededRendererType) {
+	case Graphics::kRendererTypeDefault:
+	case Graphics::kRendererTypeOpenGLShaders:
+#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
+		return Graphics::kRendererTypeOpenGLShaders;
+#endif
+	case Graphics::kRendererTypeOpenGL:
+#if defined(USE_OPENGL) && !defined(USE_GLES2)
+		return Graphics::kRendererTypeOpenGL;
+#endif
+	case Graphics::kRendererTypeTinyGL:
+	default:
+		return Graphics::kRendererTypeTinyGL;
+	}
+}
+
 Renderer *Myst3Engine::createRenderer() {
 	Common::String rendererConfig = ConfMan.get("renderer");
 	Graphics::RendererType desiredRendererType = Graphics::parseRendererTypeCode(rendererConfig);
-	Graphics::RendererType matchingRendererType = Graphics::getBestMatchingAvailableRendererType(desiredRendererType);
+	Graphics::RendererType effectiveRendererType = selectRenderer();
+
+	if (desiredRendererType == Graphics::kRendererTypeTinyGL
+	        || effectiveRendererType == Graphics::kRendererTypeTinyGL) {
+		warning("Using the 'Software' game renderer is discouraged. It results in poor performance and reduced visual quality. "
+		        "It is meant to be used only as a last resort for when the other renderers do not work");
+	}
 
 	bool fullscreen = ConfMan.getBool("fullscreen");
-	bool isAccelerated = matchingRendererType != Graphics::kRendererTypeTinyGL;
+	bool isAccelerated = effectiveRendererType != Graphics::kRendererTypeTinyGL;
 
 	uint width;
 	uint height = Renderer::kOriginalHeight;
@@ -389,31 +440,38 @@ Renderer *Myst3Engine::createRenderer() {
 
 #if defined(USE_OPENGL)
 	// Check the OpenGL context actually supports shaders
-	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders && !OpenGLContext.shadersSupported) {
-		matchingRendererType = Graphics::kRendererTypeOpenGL;
+	if (effectiveRendererType == Graphics::kRendererTypeOpenGLShaders && !OpenGLContext.shadersSupported) {
+		effectiveRendererType = Graphics::kRendererTypeOpenGL;
 	}
 #endif
 
-	if (matchingRendererType != desiredRendererType && desiredRendererType != Graphics::kRendererTypeDefault) {
-		// Display a warning if unable to use the desired renderer
-		warning("Unable to create a '%s' renderer", rendererConfig.c_str());
+	if ((ConfMan.getBool("enable_assets_mod")
+	        || ConfMan.getBool("enable_external_assets"))
+	        && effectiveRendererType != Graphics::kRendererTypeOpenGLShaders) {
+		// TODO: GUI error message
+		warning("Failed to initialize an OpenGL with shaders renderer, modding will be disabled");
 	}
 
-#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
-	if (matchingRendererType == Graphics::kRendererTypeOpenGLShaders) {
-		return new ShaderRenderer(_system);
+	if (effectiveRendererType != desiredRendererType && desiredRendererType != Graphics::kRendererTypeDefault) {
+		// Display a warning if unable to use the desired renderer
+		warning("Unable to create a '%s' renderer, created a '%s' renderer instead",
+		        rendererConfig.c_str(), Graphics::getRendererTypeCode(effectiveRendererType).c_str());
 	}
+
+	switch (effectiveRendererType) {
+#if defined(USE_GLES2) || defined(USE_OPENGL_SHADERS)
+	case Graphics::kRendererTypeOpenGLShaders:
+		return new ShaderRenderer(_system);
 #endif
 #if defined(USE_OPENGL) && !defined(USE_GLES2)
-	if (matchingRendererType == Graphics::kRendererTypeOpenGL) {
+	case Graphics::kRendererTypeOpenGL:
 		return new OpenGLRenderer(_system);
-	}
 #endif
-	if (matchingRendererType == Graphics::kRendererTypeTinyGL) {
+	case Graphics::kRendererTypeTinyGL:
 		return new TinyGLRenderer(_system);
+	default:
+		error("Unable to create a '%s' renderer", rendererConfig.c_str());
 	}
-
-	error("Unable to create a '%s' renderer", rendererConfig.c_str());
 }
 
 HotSpot *Myst3Engine::getHoveredHotspot(NodePtr nodeData, uint16 var) {
@@ -1317,6 +1375,8 @@ void Myst3Engine::playSimpleMovie(uint16 id, bool fullframe, bool refreshAmbient
 		movie.setForceOpaque(true);
 		movie.setPosU(0);
 		movie.setPosV(_state->getViewType() == kMenu ? Renderer::kTopBorderHeight : 0);
+		movie.setPosWidth(Renderer::kOriginalWidth);
+		movie.setPosHeight(_state->getViewType() == kMenu ? Renderer::kOriginalHeight : Renderer::kFrameHeight);
 	}
 
 	movie.play();
@@ -1418,23 +1478,6 @@ bool Myst3Engine::hasNodeSubtitlesToDraw() {
 	}
 
 	return ConfMan.getBool("subtitles");
-}
-
-Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
-	ResourceDescription desc = _resourceLoader->getFileDescription("GLOB", id, 0, Archive::kRawData);
-
-	if (!desc.isValid())
-		error("Texture %d does not exist", id);
-
-	Common::SeekableReadStream *data = desc.createReadStream();
-
-	TexDecoder decoder;
-	decoder.loadStream(*data, "");
-
-	Graphics::Surface *s = new Graphics::Surface();
-	s->copyFrom(*decoder.getSurface());
-
-	return s;
 }
 
 Graphics::Surface Myst3Engine::decodeJpeg(const ResourceDescription &jpegDesc) {
@@ -1913,7 +1956,6 @@ void Myst3Engine::settingsInitDefaults() {
 	ConfMan.registerDefault("zip_mode", false);
 	ConfMan.registerDefault("subtitles", false);
 	ConfMan.registerDefault("vibrations", true); // Xbox specific
-	ConfMan.registerDefault("enable_external_assets", false);
 }
 
 void Myst3Engine::settingsLoadToVars() {
@@ -1953,8 +1995,7 @@ void Myst3Engine::settingsApplyFromVars() {
 		// The language changed, reload the correct archives
 		if (_state->getLanguageText() != oldTextLanguage) {
 			delete _resourceLoader;
-			_resourceLoader = new ResourceLoader();
-			openArchives();
+			_resourceLoader = openArchives();
 		}
 	} else {
 		ConfMan.setBool("vibrations", _state->getVibrationEnabled());
@@ -1978,6 +2019,11 @@ void Myst3Engine::syncSoundSettings() {
 
 bool Myst3Engine::isWideScreenModEnabled() const {
 	return ConfMan.getBool("widescreen_mod");
+}
+
+bool Myst3Engine::isAssetsModEnabled() const {
+	return ConfMan.getBool("enable_assets_mod")
+	        && _gfx->supportsCompressedTextures();
 }
 
 void Myst3Engine::pauseEngineIntern(bool pause) {

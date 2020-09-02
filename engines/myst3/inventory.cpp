@@ -43,21 +43,18 @@ const Inventory::ItemData Inventory::_availableItems[8] = {
 
 Inventory::Inventory(Myst3Engine *vm) :
 		_vm(vm),
-		_texture(0) {
-	initializeTexture();
+		_texture(nullptr) {
+
+	ResourceDescription desc = _vm->_resourceLoader->getRawData("GLOB", 1204);
+	if (!desc.isValid())
+		error("The inventory texture, GLOB-1204 was not found");
+
+	TextureLoader textureLoader(*_vm->_gfx);
+	_texture = textureLoader.load(desc, TextureLoader::kImageFormatTEX);
 }
 
 Inventory::~Inventory() {
 	delete _texture;
-}
-
-void Inventory::initializeTexture() {
-	Graphics::Surface *s = _vm->loadTexture(1204);
-
-	_texture = _vm->_gfx->createTexture(*s);
-
-	s->free();
-	delete s;
 }
 
 bool Inventory::isMouseInside() {
@@ -78,6 +75,7 @@ void Inventory::draw() {
 	}
 
 	uint16 hoveredItemVar = hoveredItem();
+	float textureScale = _texture->width / 256.f;
 
 	for (ItemList::const_iterator it = _inventory.begin(); it != _inventory.end(); it++) {
 		int32 state = _vm->_state->getVar(it->var);
@@ -91,11 +89,10 @@ void Inventory::draw() {
 		bool itemHighlighted = it->var == hoveredItemVar || state == 2;
 
 		FloatRect textureRect = FloatSize(item.textureWidth, item.textureHeight)
-		        .translate(FloatPoint(
-		                       item.textureX,
-		                       itemHighlighted ? _texture->height / 2.f : .0f
-		        ))
-		        .normalize(FloatSize(_texture->width, _texture->height));
+		        .translate(FloatPoint(item.textureX, .0f))
+		        .scale(textureScale)
+		        .translate(FloatPoint(.0f, itemHighlighted ? _texture->height / 2.f : .0f))
+		        .normalize(_texture->size());
 
 		FloatRect itemRect = it->rect
 		        .normalize(screenViewport.size());
@@ -308,9 +305,9 @@ void Inventory::updateCursor() {
 
 DragItem::DragItem(Myst3Engine *vm, uint id):
 		_vm(vm),
-		_texture(0),
-		_frame(1) {
-	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("DRAG", id, 0, Archive::kStillMovie);
+		_frame(1),
+		_texture(nullptr) {
+	ResourceDescription movieDesc = _vm->_resourceLoader->getStillMovie("DRAG", id);
 
 	if (!movieDesc.isValid())
 		error("Movie %d does not exist", id);
@@ -323,6 +320,14 @@ DragItem::DragItem(Myst3Engine *vm, uint id):
 
 	const Graphics::Surface *frame = _bink.decodeNextFrame();
 	_texture = _vm->_gfx->createTexture(*frame);
+
+	if (movieDesc.type() == Archive::kModdedMovie) {
+		// For modded resources, the screen size is that from the original file
+		 ResourceDescription::VideoData videoData = movieDesc.videoData();
+		_screenSize = FloatSize(videoData.width, videoData.height);
+	} else {
+		_screenSize = _texture->size();
+	}
 }
 
 DragItem::~DragItem() {
@@ -353,7 +358,7 @@ FloatRect DragItem::getPosition() {
 	FloatRect viewport = _vm->_layout->screenViewport();
 	float scale = _vm->_layout->scale();
 
-	FloatSize itemSize = FloatSize(_texture->width, _texture->height)
+	FloatSize itemSize = _screenSize
 	        .scale(scale);
 
 	FloatPoint itemCenter = FloatPoint(
