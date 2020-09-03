@@ -24,6 +24,7 @@ MODULE_OBJS := \
 	nodecube.o \
 	nodeframe.o \
 	puzzles.o \
+	resource_loader.o \
 	scene.o \
 	script.o \
 	sound.o \

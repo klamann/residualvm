@@ -23,6 +23,7 @@
 #include "engines/myst3/movie.h"
 #include "engines/myst3/ambient.h"
 #include "engines/myst3/myst3.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/sound.h"
 #include "engines/myst3/state.h"
 #include "engines/myst3/subtitles.h"
@@ -33,7 +34,7 @@
 
 namespace Myst3 {
 
-Movie::Movie(Myst3Engine *vm, uint16 id) :
+Movie::Movie(Myst3Engine *vm, const Common::String &room, uint16 id) :
 		_vm(vm),
 		_id(id),
 		_posU(0),
@@ -48,16 +49,16 @@ Movie::Movie(Myst3Engine *vm, uint16 id) :
 		_additiveBlending(false),
 		_transparency(100) {
 
-	ResourceDescription binkDesc = _vm->getFileDescription("", id, 0, Archive::kMultitrackMovie);
+	ResourceDescription binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kMultitrackMovie);
 
 	if (!binkDesc.isValid())
-		binkDesc = _vm->getFileDescription("", id, 0, Archive::kDialogMovie);
+		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kDialogMovie);
 
 	if (!binkDesc.isValid())
-		binkDesc = _vm->getFileDescription("", id, 0, Archive::kStillMovie);
+		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kStillMovie);
 
 	if (!binkDesc.isValid())
-		binkDesc = _vm->getFileDescription("", id, 0, Archive::kMovie);
+		binkDesc = _vm->_resourceLoader->getFileDescription(room, id, 0, Archive::kMovie);
 
 	// Check whether the video is optional
 	bool optional = false;
@@ -87,7 +88,7 @@ Movie::Movie(Myst3Engine *vm, uint16 id) :
 	}
 
 	if (ConfMan.getBool("subtitles"))
-		_subtitles = Subtitles::create(_vm, id);
+		_subtitles = Subtitles::create(_vm, room, id);
 
 	// Clear the subtitles override anyway, so that it does not end up
 	// being used by the another movie at some point.
@@ -219,8 +220,8 @@ void Movie::setForce2d(bool b) {
 	}
 }
 
-ScriptedMovie::ScriptedMovie(Myst3Engine *vm, uint16 id) :
-		Movie(vm, id),
+ScriptedMovie::ScriptedMovie(Myst3Engine *vm, const Common::String &room, uint16 id) :
+		Movie(vm, room, id),
 		_condition(0),
 		_conditionBit(0),
 		_startFrameVar(0),
@@ -387,8 +388,8 @@ void ScriptedMovie::updateVolume() {
 ScriptedMovie::~ScriptedMovie() {
 }
 
-SimpleMovie::SimpleMovie(Myst3Engine *vm, uint16 id) :
-		Movie(vm, id),
+SimpleMovie::SimpleMovie(Myst3Engine *vm, const Common::String &room, uint16 id) :
+		Movie(vm, room, id),
 		_synchronized(false) {
 	_startFrame = 1;
 	_endFrame = _bink.getFrameCount();
@@ -472,8 +473,8 @@ void SimpleMovie::refreshAmbientSounds() {
 SimpleMovie::~SimpleMovie() {
 }
 
-ProjectorMovie::ProjectorMovie(Myst3Engine *vm, uint16 id, Graphics::Surface *background) :
-		ScriptedMovie(vm, id),
+ProjectorMovie::ProjectorMovie(Myst3Engine *vm, const Common::String &room, uint16 id, Graphics::Surface *background) :
+		ScriptedMovie(vm, room, id),
 		_background(background),
 	_frame(0) {
 	_enabled = true;

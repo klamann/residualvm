@@ -22,9 +22,11 @@
 
 #include "engines/myst3/puzzles.h"
 #include "engines/myst3/ambient.h"
+#include "engines/myst3/database.h"
 #include "engines/myst3/menu.h"
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/node.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/state.h"
 #include "engines/myst3/sound.h"
 
@@ -1140,7 +1142,7 @@ void Puzzles::journalSaavedro(int16 move) {
 
 		// Does the left page need to be loaded from a different node?
 		if (nodeLeft != nodeRight) {
-			ResourceDescription jpegDesc = _vm->getFileDescription("", nodeLeft, 0, Archive::kFrame);
+			ResourceDescription jpegDesc = _vm->_resourceLoader->getFileDescription("JRNL", nodeLeft, 0, Archive::kFrame);
 
 			if (!jpegDesc.isValid())
 				error("Frame %d does not exist", nodeLeft);
@@ -1182,7 +1184,7 @@ int16 Puzzles::_journalSaavedroLastPageLastChapterValue() {
 }
 
 uint16 Puzzles::_journalSaavedroGetNode(uint16 chapter) {
-	ResourceDescription desc = _vm->getFileDescription("", 1200, 0, Archive::kNumMetadata);
+	ResourceDescription desc = _vm->_resourceLoader->getFileDescription("JRNL", 1200, 0, Archive::kNumMetadata);
 
 	if (!desc.isValid())
 		error("Node 1200 does not exist");
@@ -1216,7 +1218,8 @@ uint16 Puzzles::_journalSaavedroNextChapter(uint16 chapter, bool forward) {
 void Puzzles::journalAtrus(uint16 node, uint16 var) {
 	uint numPages = 0;
 
-	while (_vm->getFileDescription("", node++, 0, Archive::kFrame).isValid())
+	Common::String room = _vm->_db->getRoomName(_vm->_state->getLocationRoom(), _vm->_state->getLocationAge());
+	while (_vm->_resourceLoader->getFileDescription(room, node++, 0, Archive::kFrame).isValid())
 		numPages++;
 
 	_vm->_state->setVar(var, numPages - 1);
@@ -1525,7 +1528,7 @@ void Puzzles::projectorLoadBitmap(uint16 bitmap) {
 	_vm->_projectorBackground = new Graphics::Surface();
 	_vm->_projectorBackground->create(1024, 1024, Texture::getRGBAPixelFormat());
 
-	ResourceDescription movieDesc = _vm->getFileDescription("", bitmap, 0, Archive::kStillMovie);
+	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("LEOS", bitmap, 0, Archive::kStillMovie);
 
 	if (!movieDesc.isValid())
 		error("Movie %d does not exist", bitmap);
@@ -1552,7 +1555,7 @@ void Puzzles::projectorAddSpotItem(uint16 bitmap, uint16 x, uint16 y) {
 	if (!_vm->_state->getVar(26))
 		return;
 
-	ResourceDescription movieDesc = _vm->getFileDescription("", bitmap, 0, Archive::kStillMovie);
+	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("LEOS", bitmap, 0, Archive::kStillMovie);
 
 	if (!movieDesc.isValid())
 		error("Movie %d does not exist", bitmap);

@@ -37,10 +37,12 @@
 #include "engines/myst3/archive.h"
 #include "engines/myst3/console.h"
 #include "engines/myst3/database.h"
+#include "engines/myst3/debug.h"
 #include "engines/myst3/effects.h"
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/nodecube.h"
 #include "engines/myst3/nodeframe.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"
 #include "engines/myst3/cursor.h"
@@ -65,7 +67,7 @@ namespace Myst3 {
 Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 		Engine(syst), _system(syst), _gameDescription(version),
 		_db(0), _console(0), _scriptEngine(0),
-		_state(0), _node(0), _scene(0), _archiveNode(0),
+		_state(0), _node(0), _scene(0), _resourceLoader(nullptr),
 		_cursor(0), _inventory(0), _gfx(0), _menu(0),
 		_rnd(0), _sound(0), _ambient(0),
 		_inputSpacePressed(false), _inputEnterPressed(false),
@@ -79,8 +81,9 @@ Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 		_transition(0), _frameLimiter(0), _inventoryManualHide(false) {
 	DebugMan.addDebugChannel(kDebugVariable, "Variable", "Track Variable Accesses");
 	DebugMan.addDebugChannel(kDebugSaveLoad, "SaveLoad", "Track Save/Load Function");
-	DebugMan.addDebugChannel(kDebugScript, "Script", "Track Script Execution");
-	DebugMan.addDebugChannel(kDebugNode, "Node", "Track Node Changes");
+	DebugMan.addDebugChannel(kDebugScript,   "Script",   "Track Script Execution");
+	DebugMan.addDebugChannel(kDebugNode,     "Node",     "Track Node Changes");
+	DebugMan.addDebugChannel(kDebugModding,  "Modding",  "Debug the loading of modded assets");
 
 	// Add subdirectories to the search path to allow running from a full HDD install
 	const Common::FSNode gameDataDir(ConfMan.get("path"));
@@ -113,13 +116,12 @@ Myst3Engine::Myst3Engine(OSystem *syst, const Myst3GameDescription *version) :
 Myst3Engine::~Myst3Engine() {
 	DebugMan.clearAllDebugChannels();
 
-	closeArchives();
-
 	delete _menu;
 	delete _inventory;
 	delete _cursor;
 	delete _scene;
-	delete _archiveNode;
+	delete _node;
+	delete _resourceLoader;
 	delete _db;
 	delete _scriptEngine;
 	delete _console;
@@ -174,6 +176,8 @@ Common::Error Myst3Engine::run() {
 
 	settingsInitDefaults();
 	syncSoundSettings();
+
+	_resourceLoader = new ResourceLoader();
 	openArchives();
 
 	_cursor = new Cursor(this);
@@ -224,20 +228,6 @@ Common::Error Myst3Engine::run() {
 	_system->lockMouse(false);
 
 	return Common::kNoError;
-}
-
-bool Myst3Engine::addArchive(const Common::String &file, bool mandatory) {
-	Archive *archive = Archive::createFromFile(file, "");
-	if (!archive) {
-		if (mandatory) {
-			error("Unable to open archive %s", file.c_str());
-		}
-
-		return false;
-	}
-
-	_archivesCommon.push_back(archive);
-	return true;
 }
 
 void Myst3Engine::openArchives() {
@@ -326,16 +316,16 @@ void Myst3Engine::openArchives() {
 	Common::ArchiveMemberList overrides;
 	SearchMan.listMatchingMembers(overrides, "*.m3o");
 	for (Common::ArchiveMemberList::const_iterator it = overrides.begin(); it != overrides.end(); it++) {
-		addArchive(it->get()->getName(), false);
+		_resourceLoader->addArchive(it->get()->getName(), false);
 	}
 
-	addArchive(textLanguage + ".m3t", true);
+	_resourceLoader->addArchive(textLanguage + ".m3t", true);
 
 	if (getGameLocalizationType() != kLocMonolingual || getPlatform() == Common::kPlatformXbox || getGameLanguage() == Common::HE_ISR) {
-		addArchive(menuLanguage + ".m3u", true);
+		_resourceLoader->addArchive(menuLanguage + ".m3u", true);
 	}
 
-	addArchive("RSRC.m3r", true);
+	_resourceLoader->addArchive("RSRC.m3r", true);
 }
 
 bool Myst3Engine::isTextLanguageEnglish() const {
@@ -344,13 +334,6 @@ bool Myst3Engine::isTextLanguageEnglish() const {
 	}
 
 	return getGameLocalizationType() != kLocMonolingual && ConfMan.getInt("text_language") == kEnglish;
-}
-
-void Myst3Engine::closeArchives() {
-	for (uint i = 0; i < _archivesCommon.size(); i++)
-		delete _archivesCommon[i];
-
-	_archivesCommon.clear();
 }
 
 bool Myst3Engine::checkDatafiles() {
@@ -860,25 +843,24 @@ void Myst3Engine::loadNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
 
 	_db->cacheRoom(roomID, ageID);
 
-	Common::String newRoomName = _db->getRoomName(roomID, ageID);
-	if ((!_archiveNode || _archiveNode->getRoomName() != newRoomName) && !_db->isCommonRoom(roomID, ageID)) {
-		delete _archiveNode;
-		_archiveNode = nullptr;
+	Common::String currentRoomName = _resourceLoader->currentRoom();
+	Common::String newRoomName     = _db->getRoomName(roomID, ageID);
 
-		Common::String nodeFile = Common::String::format("%snodes.m3a", newRoomName.c_str());
-		_archiveNode = Archive::createFromFile(nodeFile, newRoomName);
-		if (!_archiveNode) {
-			error("Unable to open archive %s", nodeFile.c_str());
-		}
+	if (currentRoomName != newRoomName && !_db->isCommonRoom(roomID, ageID)) {
+		_resourceLoader->unloadRoomArchives();
+		_resourceLoader->loadRoomArchives(newRoomName);
 	}
 
 	runNodeInitScripts();
-	if (!_node) {
-		return; // The main init script does not load a node
+	if (!_node || _node->room() != newRoomName) {
+		// The main init script did not load a node, or the init script
+		// loaded a different node.
+		return;
 	}
 
 	// The effects can only be created after running the node init scripts
 	_node->initEffects();
+
 	_shakeEffect = ShakeEffect::create(this);
 	_rotationEffect = RotationEffect::create(this);
 
@@ -971,7 +953,8 @@ void Myst3Engine::loadNodeCubeFaces(uint16 nodeID) {
 	_cursor->lockPosition(true);
 	updateCursor();
 
-	_node = new NodeCube(this, nodeID);
+	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
+	_node = new NodeCube(this, room, nodeID);
 }
 
 void Myst3Engine::loadNodeFrame(uint16 nodeID) {
@@ -980,7 +963,8 @@ void Myst3Engine::loadNodeFrame(uint16 nodeID) {
 	_cursor->lockPosition(false);
 	updateCursor();
 
-	_node = new NodeFrame(this, nodeID);
+	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
+	_node = new NodeFrame(this, room, nodeID);
 }
 
 void Myst3Engine::loadNodeMenu(uint16 nodeID) {
@@ -989,7 +973,8 @@ void Myst3Engine::loadNodeMenu(uint16 nodeID) {
 	_cursor->lockPosition(false);
 	updateCursor();
 
-	_node = new NodeFrame(this, nodeID);
+	Common::String room = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
+	_node = new NodeFrame(this, room, nodeID);
 }
 
 void Myst3Engine::runScriptsFromNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
@@ -1080,12 +1065,14 @@ void Myst3Engine::runAmbientScripts(uint32 node) {
 }
 
 void Myst3Engine::loadMovie(uint16 id, uint16 condition, bool resetCond, bool loop) {
+	assert(_node);
+
 	ScriptedMovie *movie;
 
 	if (!_state->getMovieUseBackground()) {
-		movie = new ScriptedMovie(this, id);
+		movie = new ScriptedMovie(this, _node->room(), id);
 	} else {
-		movie = new ProjectorMovie(this, id, _projectorBackground);
+		movie = new ProjectorMovie(this, _node->room(), id, _projectorBackground);
 		_projectorBackground = 0;
 		_state->setMovieUseBackground(0);
 	}
@@ -1208,7 +1195,9 @@ void Myst3Engine::loadMovie(uint16 id, uint16 condition, bool resetCond, bool lo
 }
 
 void Myst3Engine::playSimpleMovie(uint16 id, bool fullframe, bool refreshAmbientSounds) {
-	SimpleMovie movie(this, id);
+	assert(_node);
+
+	SimpleMovie movie(this, _node->room(), id);
 
 	if (!movie.isVideoLoaded()) {
 		// The video was not loaded and it was optional, just do nothing
@@ -1328,80 +1317,19 @@ void Myst3Engine::loadNodeSubtitles(uint32 id) {
 	_node->loadSubtitles(id);
 }
 
-ResourceDescription Myst3Engine::getFileDescription(const Common::String &room, uint32 index, uint16 face,
-                                                    Archive::ResourceType type) {
-	Common::String archiveRoom = room;
-	if (archiveRoom == "") {
-		archiveRoom = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
-	}
-
-	ResourceDescription desc;
-
-	// Search common archives
-	uint i = 0;
-	while (!desc.isValid() && i < _archivesCommon.size()) {
-		desc = _archivesCommon[i]->getDescription(archiveRoom, index, face, type);
-		i++;
-	}
-
-	// Search currently loaded node archive
-	if (!desc.isValid() && _archiveNode)
-		desc = _archiveNode->getDescription(archiveRoom, index, face, type);
-
-	return desc;
-}
-
-ResourceDescriptionArray Myst3Engine::listFilesMatching(const Common::String &room, uint32 index, Archive::ResourceType type) {
-	Common::String archiveRoom = room;
-	if (archiveRoom == "") {
-		archiveRoom = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
-	}
-
-	for (uint i = 0; i < _archivesCommon.size(); i++) {
-		ResourceDescriptionArray list = _archivesCommon[i]->listFilesMatching(archiveRoom, index, type);
-		if (!list.empty()) {
-			return list;
-		}
-	}
-
-	if (!_archiveNode) {
-		return ResourceDescriptionArray();
-	}
-
-	return _archiveNode->listFilesMatching(archiveRoom, index, type);
-}
-
 Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
-	ResourceDescription desc = getFileDescription("GLOB", id, 0, Archive::kRawData);
+	ResourceDescription desc = _resourceLoader->getFileDescription("GLOB", id, 0, Archive::kRawData);
 
 	if (!desc.isValid())
 		error("Texture %d does not exist", id);
 
 	Common::SeekableReadStream *data = desc.createReadStream();
 
-	uint32 magic = data->readUint32LE();
-	if (magic != MKTAG('.', 'T', 'E', 'X'))
-		error("Wrong texture format %d", id);
-
-	data->readUint32LE(); // unk 1
-	uint32 width = data->readUint32LE();
-	uint32 height = data->readUint32LE();
-	data->readUint32LE(); // unk 2
-	data->readUint32LE(); // unk 3
-
-#ifdef SCUMM_BIG_ENDIAN
-	Graphics::PixelFormat onDiskFormat = Graphics::PixelFormat(4, 8, 8, 8, 8, 0, 24, 16, 8);
-#else
-	Graphics::PixelFormat onDiskFormat = Graphics::PixelFormat(4, 8, 8, 8, 8, 8, 16, 24, 0);
-#endif
+	TexDecoder decoder;
+	decoder.loadStream(*data, "");
 
 	Graphics::Surface *s = new Graphics::Surface();
-	s->create(width, height, onDiskFormat);
-
-	data->read(s->getPixels(), height * s->pitch);
-	delete data;
-
-	s->convertToInPlace(Texture::getRGBAPixelFormat());
+	s->copyFrom(*decoder.getSurface());
 
 	return s;
 }
@@ -1713,10 +1641,12 @@ void Myst3Engine::animateDirectionChange(float targetPitch, float targetHeading,
 }
 
 void Myst3Engine::getMovieLookAt(uint16 id, bool start, float &pitch, float &heading) {
-	ResourceDescription desc = getFileDescription("", id, 0, Archive::kMovie);
+	assert(_node);
+
+	ResourceDescription desc = _resourceLoader->getFileDescription(_node->room(), id, 0, Archive::kMovie);
 
 	if (!desc.isValid())
-		desc = getFileDescription("", id, 0, Archive::kMultitrackMovie);
+		desc = _resourceLoader->getFileDescription(_node->room(), id, 0, Archive::kMultitrackMovie);
 
 	if (!desc.isValid())
 		error("Movie %d does not exist", id);
@@ -1880,6 +1810,7 @@ void Myst3Engine::settingsInitDefaults() {
 	ConfMan.registerDefault("zip_mode", false);
 	ConfMan.registerDefault("subtitles", false);
 	ConfMan.registerDefault("vibrations", true); // Xbox specific
+	ConfMan.registerDefault("enable_external_assets", false);
 }
 
 void Myst3Engine::settingsLoadToVars() {
@@ -1918,7 +1849,8 @@ void Myst3Engine::settingsApplyFromVars() {
 
 		// The language changed, reload the correct archives
 		if (_state->getLanguageText() != oldTextLanguage) {
-			closeArchives();
+			delete _resourceLoader;
+			_resourceLoader = new ResourceLoader();
 			openArchives();
 		}
 	} else {

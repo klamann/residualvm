@@ -26,6 +26,7 @@
 #include "engines/myst3/menu.h"
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/node.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/sound.h"
 #include "engines/myst3/state.h"
@@ -45,10 +46,10 @@ Dialog::Dialog(Myst3Engine *vm, uint id):
 	_isConstrainedToWindow = false;
 	_scaled = !_vm->isWideScreenModEnabled();
 
-	ResourceDescription countDesc = _vm->getFileDescription("DLGI", id, 0, Archive::kNumMetadata);
-	ResourceDescription movieDesc = _vm->getFileDescription("DLOG", id, 0, Archive::kDialogMovie);
+	ResourceDescription countDesc = _vm->_resourceLoader->getFileDescription("DLGI", id, 0, Archive::kNumMetadata);
+	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("DLOG", id, 0, Archive::kDialogMovie);
 	if (!movieDesc.isValid()) {
-		movieDesc = _vm->getFileDescription("DLOG", id, 0, Archive::kStillMovie);
+		movieDesc = _vm->_resourceLoader->getFileDescription("DLOG", id, 0, Archive::kStillMovie);
 	}
 
 	if (!movieDesc.isValid() || !countDesc.isValid())
@@ -105,7 +106,7 @@ ButtonsDialog::~ButtonsDialog() {
 }
 
 void ButtonsDialog::loadButtons() {
-	ResourceDescription buttonsDesc = _vm->getFileDescription("DLGB", 1000, 0, Archive::kNumMetadata);
+	ResourceDescription buttonsDesc = _vm->_resourceLoader->getFileDescription("DLGB", 1000, 0, Archive::kNumMetadata);
 
 	if (!buttonsDesc.isValid())
 		error("Unable to load dialog buttons description");
@@ -409,7 +410,7 @@ Common::String Menu::getAgeLabel(GameState *gameState) {
 		age = gameState->getLocationAge();
 
 	// Look for the age name
-	ResourceDescription desc = _vm->getFileDescription("AGES", 1000, 0, Archive::kTextMetadata);
+	ResourceDescription desc = _vm->_resourceLoader->getFileDescription("AGES", 1000, 0, Archive::kTextMetadata);
 
 	if (!desc.isValid())
 		error("Unable to load age descriptions.");
@@ -850,7 +851,7 @@ void AlbumMenu::saveLoadAction(uint16 action, uint16 item) {
 }
 
 Common::String AlbumMenu::getSaveNameTemplate() {
-	ResourceDescription saveNameDesc = _vm->getFileDescription("SAVE", 1000, 0, Archive::kTextMetadata);
+	ResourceDescription saveNameDesc = _vm->_resourceLoader->getFileDescription("SAVE", 1000, 0, Archive::kTextMetadata);
 	return saveNameDesc.textData(0); // "EXILE Saved Game %d"
 }
 

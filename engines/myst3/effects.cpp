@@ -24,6 +24,7 @@
 #include "engines/myst3/effects.h"
 #include "engines/myst3/gfx.h"
 #include "engines/myst3/myst3.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/state.h"
 #include "engines/myst3/sound.h"
 
@@ -70,7 +71,7 @@ bool Effect::loadMasks(const Common::String &room, uint32 id, Archive::ResourceT
 
 	// Load the mask of each face
 	for (uint i = 0; i < 6; i++) {
-		ResourceDescription desc = _vm->getFileDescription(room, id, i + 1, type);
+		ResourceDescription desc = _vm->_resourceLoader->getFileDescription(room, id, i + 1, type);
 
 		if (desc.isValid()) {
 			Common::SeekableReadStream *data = desc.createReadStream();
@@ -168,10 +169,14 @@ WaterEffect::WaterEffect(Myst3Engine *vm) :
 WaterEffect::~WaterEffect() {
 }
 
-WaterEffect *WaterEffect::create(Myst3Engine *vm, uint32 id) {
+WaterEffect *WaterEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
+	if (!vm->_state->getWaterEffects()) {
+		return nullptr;
+	}
+
 	WaterEffect *s = new WaterEffect(vm);
 
-	if (!s->loadMasks("", id, Archive::kWaterEffectMask)) {
+	if (!s->loadMasks(room, id, Archive::kWaterEffectMask)) {
 		delete s;
 		return 0;
 	}
@@ -344,10 +349,10 @@ LavaEffect::~LavaEffect() {
 
 }
 
-LavaEffect *LavaEffect::create(Myst3Engine *vm, uint32 id) {
+LavaEffect *LavaEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
 	LavaEffect *s = new LavaEffect(vm);
 
-	if (!s->loadMasks("", id, Archive::kLavaEffectMask)) {
+	if (!s->loadMasks(room, id, Archive::kLavaEffectMask)) {
 		delete s;
 		return 0;
 	}
@@ -440,13 +445,13 @@ MagnetEffect::~MagnetEffect() {
 	delete _shakeStrength;
 }
 
-MagnetEffect *MagnetEffect::create(Myst3Engine *vm, uint32 id) {
+MagnetEffect *MagnetEffect::create(Myst3Engine *vm, const Common::String &room, uint32 id) {
 	if (!vm->_state->getMagnetEffectSound()) {
 		return nullptr;
 	}
 
 	MagnetEffect *s = new MagnetEffect(vm);
-	s->loadMasks("", id, Archive::kMagneticEffectMask);
+	s->loadMasks(room, id, Archive::kMagneticEffectMask);
 	return s;
 }
 
@@ -467,7 +472,7 @@ bool MagnetEffect::update() {
 		// The sound changed since last update
 		_lastSoundId = soundId;
 
-		ResourceDescription desc = _vm->getFileDescription("", _vm->_state->getMagnetEffectNode(), 0, Archive::kRawData);
+		ResourceDescription desc = _vm->_resourceLoader->getFileDescription("MASS", _vm->_state->getMagnetEffectNode(), 0, Archive::kRawData);
 		if (!desc.isValid())
 			error("Magnet effect support file %d does not exist", _vm->_state->getMagnetEffectNode());
 
@@ -658,7 +663,8 @@ void RotationEffect::applyForFace(uint face, Graphics::Surface* src, Graphics::S
 
 bool ShieldEffect::loadPattern() {
 	// Read the shield effect support data
-	ResourceDescription desc = _vm->getFileDescription("NARA", 10000, 0, Archive::kRawData);
+	ResourceDescription desc = _vm->_resourceLoader->getFileDescription("NARA", 10000, 0, Archive::kRawData);
+
 	if (!desc.isValid()) {
 		return false;
 	}

@@ -35,6 +35,7 @@ struct Surface;
 namespace Myst3 {
 
 class Myst3Engine;
+class ResourceLoader;
 
 class Effect {
 public:
@@ -72,7 +73,7 @@ protected:
 
 class WaterEffect : public Effect {
 public:
-	static WaterEffect *create(Myst3Engine *vm, uint32 id);
+	static WaterEffect *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~WaterEffect();
 
 	bool update();
@@ -98,7 +99,7 @@ private:
 
 class LavaEffect : public Effect {
 public:
-	static LavaEffect *create(Myst3Engine *vm, uint32 id);
+	static LavaEffect *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~LavaEffect();
 
 	bool update();
@@ -117,7 +118,7 @@ protected:
 
 class MagnetEffect : public Effect {
 public:
-	static MagnetEffect *create(Myst3Engine *vm, uint32 id);
+	static MagnetEffect *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~MagnetEffect();
 
 	bool update();

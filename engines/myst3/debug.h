@@ -20,24 +20,22 @@
  *
  */
 
-#ifndef NODEFRAME_H_
-#define NODEFRAME_H_
+#ifndef MYST3_DEBUG_H
+#define MYST3_DEBUG_H
 
-#include "engines/myst3/node.h"
+#include "common/scummsys.h"
 
 namespace Myst3 {
 
-class NodeFrame : public Node {
-public:
-	NodeFrame(Myst3Engine *vm, const Common::String &room, uint16 id);
-	virtual ~NodeFrame();
-
-	void draw() override;
-
-protected:
-	virtual bool isFaceVisible(uint faceId) override { return true; }
+// Engine Debug Flags
+enum {
+	kDebugVariable = (1 << 0),
+	kDebugSaveLoad = (1 << 1),
+	kDebugNode     = (1 << 2),
+	kDebugScript   = (1 << 3),
+	kDebugModding  = (1 << 4)
 };
 
-} // End of namespace Myst3
+} // end of namespace Myst3
 
-#endif // NODEFRAME_H_
+#endif

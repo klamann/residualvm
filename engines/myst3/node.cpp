@@ -24,6 +24,7 @@
 #include "engines/myst3/effects.h"
 #include "engines/myst3/node.h"
 #include "engines/myst3/myst3.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/state.h"
 #include "engines/myst3/subtitles.h"
 
@@ -85,8 +86,9 @@ Face::~Face() {
 	}
 }
 
-Node::Node(Myst3Engine *vm, uint16 id) :
+Node::Node(Myst3Engine *vm, const Common::String &room, uint16 id) :
 		_vm(vm),
+		_room(room),
 		_id(id),
 		_subtitles(nullptr) {
 	for (uint i = 0; i < ARRAYSIZE(_faces); i++)
@@ -104,20 +106,20 @@ void Node::initEffects() {
 	}
 
 	if (_vm->_state->getWaterEffects()) {
-		Effect *effect = WaterEffect::create(_vm, _id);
+		Effect *effect = WaterEffect::create(_vm, _room, _id);
 		if (effect) {
 			_effects.push_back(effect);
 			_vm->_state->setWaterEffectActive(true);
 		}
 	}
 
-	Effect *effect = MagnetEffect::create(_vm, _id);
+	Effect *effect = MagnetEffect::create(_vm, _room, _id);
 	if (effect) {
 		_effects.push_back(effect);
 		_vm->_state->setMagnetEffectActive(true);
 	}
 
-	effect = LavaEffect::create(_vm, _id);
+	effect = LavaEffect::create(_vm, _room, _id);
 	if (effect) {
 		_effects.push_back(effect);
 		_vm->_state->setLavaEffectActive(true);
@@ -164,10 +166,7 @@ void Node::loadSpotItem(uint16 id, int16 condition, bool fade) {
 	spotItem->setFade(fade);
 	spotItem->setFadeVar(abs(condition));
 
-	ResourceDescriptionArray spotItemImages = _vm->listFilesMatching("", id, Archive::kLocalizedSpotItem);
-
-	if (spotItemImages.empty())
-		spotItemImages = _vm->listFilesMatching("", id, Archive::kSpotItem);
+	ResourceDescriptionArray spotItemImages = _vm->_resourceLoader->listSpotItemImages(_room, id);
 
 	for (uint j = 0; j < spotItemImages.size(); j++) {
 		const ResourceDescription &image = spotItemImages[j];
@@ -211,7 +210,7 @@ SpotItemFace *Node::loadMenuSpotItem(int16 condition, const Common::Rect &rect) 
 }
 
 void Node::loadSubtitles(uint32 id) {
-	_subtitles = Subtitles::create(_vm, id);
+	_subtitles = Subtitles::create(_vm, _room, id);
 }
 
 bool Node::hasSubtitlesToDraw() {

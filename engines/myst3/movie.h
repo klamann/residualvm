@@ -37,7 +37,7 @@ class Subtitles;
 
 class Movie : public Drawable {
 public:
-	Movie(Myst3Engine *vm, uint16 id);
+	Movie(Myst3Engine *vm, const Common::String &room, uint16 id);
 	virtual ~Movie();
 
 	virtual void draw() override;
@@ -93,7 +93,7 @@ protected:
 
 class ScriptedMovie : public Movie {
 public:
-	ScriptedMovie(Myst3Engine *vm, uint16 id);
+	ScriptedMovie(Myst3Engine *vm, const Common::String &room, uint16 id);
 	virtual ~ScriptedMovie();
 
 	void draw() override;
@@ -150,7 +150,7 @@ protected:
 
 class SimpleMovie : public Movie {
 public:
-	SimpleMovie(Myst3Engine *vm, uint16 id);
+	SimpleMovie(Myst3Engine *vm, const Common::String &room, uint16 id);
 	virtual ~SimpleMovie();
 
 	void update();
@@ -171,7 +171,7 @@ private:
 // Used by the projectors on J'nanin, see puzzle #14
 class ProjectorMovie : public ScriptedMovie {
 public:
-	ProjectorMovie(Myst3Engine *vm, uint16 id, Graphics::Surface *background);
+	ProjectorMovie(Myst3Engine *vm, const Common::String &room, uint16 id, Graphics::Surface *background);
 	virtual ~ProjectorMovie();
 
 	void update();

@@ -23,23 +23,15 @@
 #include "engines/myst3/archive.h"
 #include "engines/myst3/myst3.h"
 #include "engines/myst3/nodeframe.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"
 
 namespace Myst3 {
 
-NodeFrame::NodeFrame(Myst3Engine *vm, uint16 id) :
-		Node(vm, id) {
-	ResourceDescription jpegDesc = _vm->getFileDescription("", id, 1, Archive::kLocalizedFrame);
-
-	if (!jpegDesc.isValid())
-		jpegDesc = _vm->getFileDescription("", id, 0, Archive::kFrame);
-
-	if (!jpegDesc.isValid())
-		jpegDesc = _vm->getFileDescription("", id, 1, Archive::kFrame);
-
-	if (!jpegDesc.isValid())
-		error("Frame %d does not exist", id);
+NodeFrame::NodeFrame(Myst3Engine *vm, const Common::String &room, uint16 id) :
+		Node(vm, room, id) {
+	ResourceDescription jpegDesc = _vm->_resourceLoader->getFrameBitmap(_room, id);
 
 	_faces[0] = new Face(_vm);
 	_faces[0]->setTextureFromJPEG(&jpegDesc);

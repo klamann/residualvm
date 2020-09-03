@@ -24,6 +24,7 @@
 #include "engines/myst3/cursor.h"
 #include "engines/myst3/gfx.h"
 #include "engines/myst3/myst3.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"
 
@@ -83,7 +84,7 @@ void Cursor::loadAvailableCursors() {
 		if (_textures.contains(availableCursors[i].nodeID)) continue;
 
 		// Load the cursor bitmap
-		ResourceDescription cursorDesc = _vm->getFileDescription("GLOB", availableCursors[i].nodeID, 0, Archive::kRawData);
+		ResourceDescription cursorDesc = _vm->_resourceLoader->getFileDescription("GLOB", availableCursors[i].nodeID, 0, Archive::kRawData);
 		if (!cursorDesc.isValid())
 			error("Cursor %d does not exist", availableCursors[i].nodeID);
 

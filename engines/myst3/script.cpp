@@ -25,6 +25,7 @@
 #include "engines/myst3/ambient.h"
 #include "engines/myst3/cursor.h"
 #include "engines/myst3/database.h"
+#include "engines/myst3/debug.h"
 #include "engines/myst3/hotspot.h"
 #include "engines/myst3/inventory.h"
 #include "engines/myst3/myst3.h"

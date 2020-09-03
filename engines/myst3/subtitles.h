@@ -34,7 +34,7 @@ class ResourceDescription;
 
 class Subtitles : public Window {
 public:
-	static Subtitles *create(Myst3Engine *vm, uint32 id);
+	static Subtitles *create(Myst3Engine *vm, const Common::String &room, uint32 id);
 	virtual ~Subtitles();
 
 	// Window API
@@ -55,12 +55,12 @@ protected:
 
 	void loadFontSettings(int32 id);
 	virtual void loadResources() = 0;
-	virtual bool loadSubtitles(int32 id) = 0;
+	virtual bool loadSubtitles(const Common::String &room, int32 id) = 0;
 	virtual void drawToTexture(const Phrase *phrase) = 0;
 	void freeTexture();
 
-	int32 checkOverridenId(int32 id);
-	ResourceDescription loadText(int32 id, bool overriden);
+	int32 checkOverriddenId(int32 id);
+	ResourceDescription loadText(const Common::String &room, int32 id);
 
 	Myst3Engine *_vm;
 

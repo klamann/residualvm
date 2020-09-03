@@ -36,6 +36,7 @@ namespace Myst3 {
 class Texture;
 class Myst3Engine;
 class Subtitles;
+class ResourceLoader;
 class Effect;
 
 class Face {
@@ -130,8 +131,10 @@ public:
 
 class Node : public Drawable {
 public:
-	Node(Myst3Engine *vm, uint16 id);
+	Node(Myst3Engine *vm, const Common::String &room, uint16 id);
 	~Node() override;
+
+	const Common::String &room() const { return _room; }
 
 	void initEffects();
 	void resetEffects();
@@ -149,6 +152,7 @@ protected:
 	virtual bool isFaceVisible(uint faceId) = 0;
 
 	Myst3Engine *_vm;
+	Common::String _room;
 	uint16 _id;
 	Face *_faces[6];
 	Common::Array<SpotItem *> _spotItems;

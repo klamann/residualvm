@@ -42,14 +42,6 @@ struct Event;
 
 namespace Myst3 {
 
-// Engine Debug Flags
-enum {
-	kDebugVariable = (1 << 0),
-	kDebugSaveLoad = (1 << 1),
-	kDebugNode     = (1 << 2),
-	kDebugScript   = (1 << 3)
-};
-
 enum TransitionType {
 	kTransitionFade = 1,
 	kTransitionNone,
@@ -75,6 +67,7 @@ class Menu;
 class Node;
 class Sound;
 class Ambient;
+class ResourceLoader;
 class ScriptedMovie;
 class ShakeEffect;
 class RotationEffect;
@@ -104,6 +97,7 @@ public:
 	Database *_db;
 	Sound *_sound;
 	Ambient *_ambient;
+	ResourceLoader *_resourceLoader;
 	
 	Common::RandomSource *_rnd;
 
@@ -127,10 +121,6 @@ public:
 	Common::Error loadGameState(Common::String fileName, TransitionType transition);
 	Common::Error saveGameState(int slot, const Common::String &desc) override;
 	Common::Error saveGameState(const Common::String &desc, const Graphics::Surface *thumbnail);
-
-	ResourceDescription getFileDescription(const Common::String &room, uint32 index, uint16 face,
-	                                            Archive::ResourceType type);
-	ResourceDescriptionArray listFilesMatching(const Common::String &room, uint32 index, Archive::ResourceType type);
 
 	Graphics::Surface *loadTexture(uint16 id);
 	static Graphics::Surface *decodeJpeg(const ResourceDescription *jpegDesc);
@@ -198,9 +188,6 @@ private:
 
 	Node *_node;
 
-	Common::Array<Archive *> _archivesCommon;
-	Archive *_archiveNode;
-
 	Script *_scriptEngine;
 
 	Common::Array<ScriptedMovie *> _movies;
@@ -243,9 +230,7 @@ private:
 
 	bool checkDatafiles();
 
-	bool addArchive(const Common::String &file, bool mandatory);
 	void openArchives();
-	void closeArchives();
 
 	bool isInventoryVisible();
 

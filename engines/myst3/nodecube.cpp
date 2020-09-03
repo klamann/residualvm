@@ -23,17 +23,18 @@
 #include "engines/myst3/archive.h"
 #include "engines/myst3/nodecube.h"
 #include "engines/myst3/myst3.h"
+#include "engines/myst3/resource_loader.h"
 
 #include "common/debug.h"
 
 namespace Myst3 {
 
-NodeCube::NodeCube(Myst3Engine *vm, uint16 id) :
-		Node(vm, id) {
+NodeCube::NodeCube(Myst3Engine *vm, const Common::String &room, uint16 id) :
+		Node(vm, room, id) {
 	_is3D = true;
 
 	for (int i = 0; i < 6; i++) {
-		ResourceDescription jpegDesc = _vm->getFileDescription("", id, i + 1, Archive::kCubeFace);
+		ResourceDescription jpegDesc = _vm->_resourceLoader->getCubeBitmap(_room, id, i);
 
 		if (!jpegDesc.isValid())
 			error("Face %d does not exist", id);

@@ -22,6 +22,7 @@
 
 #include "engines/myst3/state.h"
 #include "engines/myst3/database.h"
+#include "engines/myst3/debug.h"
 #include "engines/myst3/gfx.h"
 
 #include "common/debug-channels.h"

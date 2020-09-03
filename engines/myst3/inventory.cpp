@@ -24,6 +24,7 @@
 
 #include "engines/myst3/cursor.h"
 #include "engines/myst3/database.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/scene.h"
 #include "engines/myst3/state.h"
 
@@ -333,7 +334,7 @@ DragItem::DragItem(Myst3Engine *vm, uint id):
 	_isConstrainedToWindow = false;
 	_scaled = !_vm->isWideScreenModEnabled();
 
-	ResourceDescription movieDesc = _vm->getFileDescription("DRAG", id, 0, Archive::kStillMovie);
+	ResourceDescription movieDesc = _vm->_resourceLoader->getFileDescription("DRAG", id, 0, Archive::kStillMovie);
 
 	if (!movieDesc.isValid())
 		error("Movie %d does not exist", id);

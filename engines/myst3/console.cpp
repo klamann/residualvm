@@ -26,6 +26,7 @@
 #include "engines/myst3/database.h"
 #include "engines/myst3/effects.h"
 #include "engines/myst3/inventory.h"
+#include "engines/myst3/resource_loader.h"
 #include "engines/myst3/script.h"
 #include "engines/myst3/state.h"
 
@@ -296,7 +297,7 @@ bool Console::Cmd_Extract(int argc, const char **argv) {
 	uint16 face = atoi(argv[3]);
 	Archive::ResourceType type = (Archive::ResourceType) atoi(argv[4]);
 
-	ResourceDescription desc = _vm->getFileDescription(room, id, face, type);
+	ResourceDescription desc = _vm->_resourceLoader->getFileDescription(room, id, face, type);
 
 	if (!desc.isValid()) {
 		debugPrintf("File with room %s, id %d, face %d and type %d does not exist\n", room.c_str(), id, face, type);
@@ -340,30 +341,8 @@ public:
 	}
 
 	void visitDirectorySubEntry(Archive::DirectoryEntry &directoryEntry, Archive::DirectorySubEntry &directorySubEntry) override {
-		Common::String fileName;
-		switch (directorySubEntry.type) {
-		case Archive::kNumMetadata:
-		case Archive::kTextMetadata:
-			return; // These types are pure metadata and can't be extracted
-		case Archive::kCubeFace:
-		case Archive::kSpotItem:
-		case Archive::kLocalizedSpotItem:
-		case Archive::kFrame:
-			fileName = Common::String::format("dump/%s-%d-%d.jpg", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face);
-			break;
-		case Archive::kWaterEffectMask:
-			fileName = Common::String::format("dump/%s-%d-%d.mask", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face);
-			break;
-		case Archive::kMovie:
-		case Archive::kStillMovie:
-		case Archive::kDialogMovie:
-		case Archive::kMultitrackMovie:
-			fileName = Common::String::format("dump/%s-%d.bik", directoryEntry.roomName.c_str(), directoryEntry.index);
-			break;
-		default:
-			fileName = Common::String::format("dump/%s-%d-%d.%d", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face, directorySubEntry.type);
-			break;
-		}
+		Common::String fileName = ResourceLoader::computeExtractedFileName(directoryEntry, directorySubEntry);
+		if (fileName.empty()) return;
 
 		debug("Extracted %s", fileName.c_str());
 
@@ -381,8 +360,8 @@ private:
 
 bool Console::Cmd_DumpArchive(int argc, const char **argv) {
 	if (argc != 2) {
-		debugPrintf("Extract all the files from a game archive.\n");
-		debugPrintf("The destination folder, named 'dump', must exist.\n");
+		debugPrintf("Extract all the files from a game archive\n");
+		debugPrintf("The destination folder, named 'dump', is in the location ResidualVM was launched from\n");
 		debugPrintf("Usage :\n");
 		debugPrintf("dumpArchive [file name]\n");
 		return true;
@@ -422,35 +401,39 @@ bool Console::Cmd_DumpMasks(int argc, const char **argv) {
 	}
 
 	uint16 nodeId = _vm->_state->getLocationNode();
+	uint32 roomId = _vm->_state->getLocationRoom();
+	uint32 ageID  = _vm->_state->getLocationAge();
 
 	if (argc >= 2) {
 		nodeId = atoi(argv[1]);
 	}
 
-	debugPrintf("Extracting masks for node %d:\n", nodeId);
+	Common::String roomName = _vm->_db->getRoomName(roomId, ageID);
+
+	debugPrintf("Extracting masks for node %s %d:\n", roomName.c_str(), nodeId);
 
 	for (uint i = 0; i < 6; i++) {
-		bool water = dumpFaceMask(nodeId, i, Archive::kWaterEffectMask);
+		bool water = dumpFaceMask(roomName, nodeId, i, Archive::kWaterEffectMask);
 		if (water)
 			debugPrintf("Face %d: water OK\n", i);
 
-		bool effect2 = dumpFaceMask(nodeId, i, Archive::kLavaEffectMask);
-		if (effect2)
-			debugPrintf("Face %d: effect 2 OK\n", i);
+		bool lava = dumpFaceMask(roomName, nodeId, i, Archive::kLavaEffectMask);
+		if (lava)
+			debugPrintf("Face %d: lava OK\n", i);
 
-		bool magnet = dumpFaceMask(nodeId, i, Archive::kMagneticEffectMask);
+		bool magnet = dumpFaceMask(roomName, nodeId, i, Archive::kMagneticEffectMask);
 		if (magnet)
 			debugPrintf("Face %d: magnet OK\n", i);
 
-		if (!water && !effect2 && !magnet)
+		if (!water && !lava && !magnet)
 			debugPrintf("Face %d: No mask found\n", i);
 	}
 
 	return true;
 }
 
-bool Console::dumpFaceMask(uint16 index, int face, Archive::ResourceType type) {
-	ResourceDescription maskDesc = _vm->getFileDescription("", index, face, type);
+bool Console::dumpFaceMask(const Common::String &room, uint16 index, int face, Archive::ResourceType type) {
+	ResourceDescription maskDesc = _vm->_resourceLoader->getFileDescription(room, index, face, type);
 
 	if (!maskDesc.isValid())
 		return false;
@@ -462,7 +445,7 @@ bool Console::dumpFaceMask(uint16 index, int face, Archive::ResourceType type) {
 	delete maskStream;
 
 	Common::DumpFile outFile;
-	outFile.open(Common::String::format("dump/%d-%d.masku_%d", index, face, type));
+	outFile.open(Common::String::format("dump/%s-%d-%d.masku_%d", room.c_str(), index, face, type), true);
 	outFile.write(mask->surface->getPixels(), mask->surface->pitch * mask->surface->h);
 	outFile.close();
 
