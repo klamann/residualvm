@@ -24,7 +24,6 @@
 
 #include "engines/stark/debug.h"
 
-#include "engines/stark/formats/dds.h"
 #include "engines/stark/formats/tm.h"
 #include "engines/stark/formats/xrc.h"
 
@@ -37,6 +36,8 @@
 
 #include "common/file.h"
 #include "common/unzip.h"
+
+#include "image/dds.h"
 #include "image/png.h"
 
 namespace Stark {
@@ -147,13 +148,14 @@ Gfx::TextureSet *TextureSet::readOverrideDdsArchive() {
 			continue;
 		}
 
-		Formats::DDS dds;
+		Image::DDS dds;
 		if (!dds.load(*ddsStream, name + " in " + archiveName)) {
 			delete ddsStream;
 			continue;
 		}
+		assert(dds.dataFormat() == Image::DDS::kDataFormatMipMaps);
 
-		const Formats::DDS::MipMaps &mipmaps = dds.getMipMaps();
+		const Image::DDS::MipMaps &mipmaps = dds.getMipMaps();
 		if (mipmaps.empty()) {
 			warning("No mipmaps in %s", name.c_str());
 			delete ddsStream;
