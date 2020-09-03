@@ -112,7 +112,7 @@ void FontSubtitles::loadCharset(int32 id) {
 
 	// Load the font charset if any
 	if (fontCharset.isValid()) {
-		Common::SeekableReadStream *data = fontCharset.getData();
+		Common::SeekableReadStream *data = fontCharset.createReadStream();
 
 		_charset = new uint8[data->size()];
 
@@ -147,7 +147,7 @@ bool FontSubtitles::loadSubtitles(int32 id) {
 }
 
 void FontSubtitles::readPhrases(const ResourceDescription *desc) {
-	Common::SeekableReadStream *crypted = desc->getData();
+	Common::SeekableReadStream *crypted = desc->createReadStream();
 
 	// Read the frames and associated text offsets
 	while (true) {
@@ -326,7 +326,7 @@ MovieSubtitles::~MovieSubtitles() {
 }
 
 void MovieSubtitles::readPhrases(const ResourceDescription *desc) {
-	Common::SeekableReadStream *frames = desc->getData();
+	Common::SeekableReadStream *frames = desc->createReadStream();
 
 	// Read the frames
 	uint index = 0;
@@ -367,7 +367,7 @@ bool MovieSubtitles::loadSubtitles(int32 id) {
 	readPhrases(&phrases);
 
 	// Load the movie
-	Common::SeekableReadStream *movieStream = movie.getData();
+	Common::SeekableReadStream *movieStream = movie.createReadStream();
 	_bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	_bink.loadStream(movieStream);
 	_bink.start();
@@ -408,14 +408,14 @@ void Subtitles::loadFontSettings(int32 id) {
 	if (!fontNums.isValid())
 		error("Unable to load font settings values");
 
-	_fontSize = fontNums.getMiscData(0);
-	_fontBold = fontNums.getMiscData(1);
-	_surfaceHeight = fontNums.getMiscData(2);
-	_singleLineTop = fontNums.getMiscData(3);
-	_line1Top = fontNums.getMiscData(4);
-	_line2Top = fontNums.getMiscData(5);
-	_surfaceTop = fontNums.getMiscData(6);
-	_fontCharsetCode = fontNums.getMiscData(7);
+	_fontSize = fontNums.miscData(0);
+	_fontBold = fontNums.miscData(1);
+	_surfaceHeight = fontNums.miscData(2);
+	_singleLineTop = fontNums.miscData(3);
+	_line1Top = fontNums.miscData(4);
+	_line2Top = fontNums.miscData(5);
+	_surfaceTop = fontNums.miscData(6);
+	_fontCharsetCode = fontNums.miscData(7);
 
 	if (_fontCharsetCode > 0) {
 		_fontCharsetCode = 128; // The Japanese subtitles are encoded in CP 932 / Shift JIS
@@ -435,7 +435,7 @@ void Subtitles::loadFontSettings(int32 id) {
 	if (!fontText.isValid())
 		error("Unable to load font face");
 
-	_fontFace = fontText.getTextData(0);
+	_fontFace = fontText.textData(0);
 }
 
 int32 Subtitles::checkOverridenId(int32 id) {

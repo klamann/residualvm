@@ -55,11 +55,11 @@ Dialog::Dialog(Myst3Engine *vm, uint id):
 		error("Unable to load dialog %d", id);
 
 	// Retrieve button count
-	_buttonCount = countDesc.getMiscData(0);
+	_buttonCount = countDesc.miscData(0);
 	assert(_buttonCount <= 3);
 
 	// Load the movie
-	Common::SeekableReadStream *movieStream = movieDesc.getData();
+	Common::SeekableReadStream *movieStream = movieDesc.createReadStream();
 	_bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	_bink.loadStream(movieStream);
 	_bink.start();
@@ -111,10 +111,10 @@ void ButtonsDialog::loadButtons() {
 		error("Unable to load dialog buttons description");
 
 	for (uint i = 0; i < 3; i++) {
-		uint32 left = buttonsDesc.getMiscData(i * 4);
-		uint32 top = buttonsDesc.getMiscData(i * 4 + 1);
-		uint32 width = buttonsDesc.getMiscData(i * 4 + 2);
-		uint32 height = buttonsDesc.getMiscData(i * 4 + 3);
+		uint32 left = buttonsDesc.miscData(i * 4);
+		uint32 top = buttonsDesc.miscData(i * 4 + 1);
+		uint32 width = buttonsDesc.miscData(i * 4 + 2);
+		uint32 height = buttonsDesc.miscData(i * 4 + 3);
 		_buttons[i] = Common::Rect(width, height);
 		_buttons[i].translate(left, top);
 	}
@@ -414,7 +414,7 @@ Common::String Menu::getAgeLabel(GameState *gameState) {
 	if (!desc.isValid())
 		error("Unable to load age descriptions.");
 
-	Common::String label = desc.getTextData(_vm->_db->getAgeLabelId(age));
+	Common::String label = desc.textData(_vm->_db->getAgeLabelId(age));
 	label.toUppercase();
 
 	return label;
@@ -851,7 +851,7 @@ void AlbumMenu::saveLoadAction(uint16 action, uint16 item) {
 
 Common::String AlbumMenu::getSaveNameTemplate() {
 	ResourceDescription saveNameDesc = _vm->getFileDescription("SAVE", 1000, 0, Archive::kTextMetadata);
-	return saveNameDesc.getTextData(0); // "EXILE Saved Game %d"
+	return saveNameDesc.textData(0); // "EXILE Saved Game %d"
 }
 
 Common::HashMap<int, Common::String> AlbumMenu::listSaveFiles() {

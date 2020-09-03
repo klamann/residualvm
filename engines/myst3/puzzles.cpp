@@ -1187,7 +1187,7 @@ uint16 Puzzles::_journalSaavedroGetNode(uint16 chapter) {
 	if (!desc.isValid())
 		error("Node 1200 does not exist");
 
-	return desc.getMiscData(chapter) + 199;
+	return desc.miscData(chapter) + 199;
 }
 
 uint16 Puzzles::_journalSaavedroPageCount(uint16 chapter) {
@@ -1531,7 +1531,7 @@ void Puzzles::projectorLoadBitmap(uint16 bitmap) {
 		error("Movie %d does not exist", bitmap);
 
 	// Rebuild the complete background image from the frames of the bink movie
-	Common::SeekableReadStream *movieStream = movieDesc.getData();
+	Common::SeekableReadStream *movieStream = movieDesc.createReadStream();
 	Video::BinkDecoder bink;
 	bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	bink.loadStream(movieStream);
@@ -1558,7 +1558,7 @@ void Puzzles::projectorAddSpotItem(uint16 bitmap, uint16 x, uint16 y) {
 		error("Movie %d does not exist", bitmap);
 
 	// Rebuild the complete background image from the frames of the bink movie
-	Common::SeekableReadStream *movieStream = movieDesc.getData();
+	Common::SeekableReadStream *movieStream = movieDesc.createReadStream();
 	Video::BinkDecoder bink;
 	bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	bink.loadStream(movieStream);

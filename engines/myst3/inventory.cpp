@@ -339,7 +339,7 @@ DragItem::DragItem(Myst3Engine *vm, uint id):
 		error("Movie %d does not exist", id);
 
 	// Load the movie
-	_movieStream = movieDesc.getData();
+	_movieStream = movieDesc.createReadStream();
 	_bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	_bink.loadStream(_movieStream);
 	_bink.start();

@@ -24,7 +24,7 @@
 #define MYST3_ARCHIVE_H
 
 #include "common/array.h"
-#include "common/file.h"
+#include "common/stream.h"
 
 #include "math/vector3d.h"
 
@@ -34,27 +34,28 @@ class ArchiveVisitor;
 class ResourceDescription;
 
 typedef Common::Array<ResourceDescription> ResourceDescriptionArray;
+typedef Common::Array<uint32> MetadataArray;
 
 class Archive {
 public:
 	enum ResourceType {
-		kCubeFace           =  0,
-		kWaterEffectMask    =  1,
-		kLavaEffectMask     =  2,
-		kMagneticEffectMask =  3,
-		kShieldEffectMask   =  4,
-		kSpotItem           =  5,
-		kFrame              =  6,
-		kRawData            =  7,
-		kMovie              =  8,
-		kStillMovie         = 10,
-		kText               = 11,
-		kTextMetadata       = 12,
-		kNumMetadata        = 13,
-		kLocalizedSpotItem  = 69,
-		kLocalizedFrame     = 70,
-		kMultitrackMovie    = 72,
-		kDialogMovie        = 74
+		kCubeFace           =   0,
+		kWaterEffectMask    =   1,
+		kLavaEffectMask     =   2,
+		kMagneticEffectMask =   3,
+		kShieldEffectMask   =   4,
+		kSpotItem           =   5,
+		kFrame              =   6,
+		kRawData            =   7,
+		kMovie              =   8,
+		kStillMovie         =  10,
+		kText               =  11,
+		kTextMetadata       =  12,
+		kNumMetadata        =  13,
+		kLocalizedSpotItem  =  69,
+		kLocalizedFrame     =  70,
+		kMultitrackMovie    =  72,
+		kDialogMovie        =  74
 	};
 
 	struct DirectorySubEntry {
@@ -62,7 +63,7 @@ public:
 		uint32 size;
 		byte face;
 		ResourceType type;
-		Common::Array<uint32> metadata;
+		MetadataArray metadata;
 
 		DirectorySubEntry() : offset(0), size(0), face(0), type(kCubeFace) {}
 	};
@@ -75,25 +76,24 @@ public:
 		DirectoryEntry() : index(0) {}
 	};
 
+	Archive(Common::SeekableReadStream *file, const Common::String &roomName);
+	~Archive();
+
+	static Archive *createFromFile(const Common::String &filename, const Common::String &roomName);
+
 	ResourceDescription getDescription(const Common::String &room, uint32 index, uint16 face,
 	                                   ResourceType type);
-	ResourceDescriptionArray listFilesMatching(const Common::String &room, uint32 index, uint16 face,
-	                                           ResourceType type);
+	ResourceDescriptionArray listFilesMatching(const Common::String &room, uint32 index, ResourceType type);
 
 	Common::SeekableReadStream *dumpToMemory(uint32 offset, uint32 size);
 	uint32 copyTo(uint32 offset, uint32 size, Common::WriteStream &out);
 	void visit(ArchiveVisitor &visitor);
 
-	bool open(const char *fileName, const char *room);
-	void close();
-
 	const Common::String &getRoomName() const { return _roomName; }
-	uint32 getDirectorySize() const { return _directorySize; }
 
 private:
 	Common::String _roomName;
-	Common::File _file;
-	uint32 _directorySize;
+	Common::SeekableReadStream *_file;
 	Common::Array<DirectoryEntry> _directory;
 
 	void decryptHeader(Common::SeekableReadStream &inStream, Common::WriteStream &outStream);
@@ -108,6 +108,8 @@ public:
 	struct SpotItemData {
 		uint32 u;
 		uint32 v;
+
+		SpotItemData() : u(0), v(0) {}
 	};
 
 	struct VideoData {
@@ -117,23 +119,38 @@ public:
 		int32 v;
 		int32 width;
 		int32 height;
+
+		VideoData() : u(0), v(0), width(0), height(0) {}
 	};
 
 	ResourceDescription();
-	ResourceDescription(Archive *archive, const Archive::DirectorySubEntry &subentry);
+	ResourceDescription(Archive *archive, const Archive::DirectoryEntry &entry, const Archive::DirectorySubEntry &subentry);
 
-	bool isValid() const { return _archive && _subentry; }
+	bool isValid() const { return _archive && _entry && _subentry; }
 
-	Common::SeekableReadStream *getData() const;
-	uint16 getFace() const { return _subentry->face; }
-	Archive::ResourceType getType() const { return _subentry->type; }
-	SpotItemData getSpotItemData() const;
-	VideoData getVideoData() const;
-	uint32 getMiscData(uint index) const;
-	Common::String getTextData(uint index) const;
+	Common::SeekableReadStream *createReadStream() const;
 
+	const Common::String &room() const { return _entry->roomName; }
+	uint16 index() const { return _entry->index; }
+	uint16 face() const { return _subentry->face; }
+	Archive::ResourceType type() const { return _subentry->type; }
+	SpotItemData spotItemData() const;
+	VideoData videoData() const;
+	uint32 miscData(uint index) const;
+	Common::String textData(uint index) const;
+
+	const Archive::DirectoryEntry &directoryEntry() const {
+		assert(isValid());
+		return *_entry;
+	}
+
+	const Archive::DirectorySubEntry &directorySubEntry() const {
+		assert(isValid());
+		return *_subentry;
+	}
 private:
 	Archive *_archive;
+	const Archive::DirectoryEntry *_entry;
 	const Archive::DirectorySubEntry *_subentry;
 };
 
@@ -143,8 +160,49 @@ public:
 
 	virtual void visitArchive(Archive &archive) {}
 	virtual void visitDirectoryEntry(Archive::DirectoryEntry &directoryEntry) {}
-	virtual void visitDirectorySubEntry(Archive::DirectorySubEntry &directorySubEntry) {}
+	virtual void visitDirectorySubEntry(Archive::DirectoryEntry &directoryEntry, Archive::DirectorySubEntry &directorySubEntry) {}
 };
+
+class ArchiveWriter {
+public:
+	ArchiveWriter(const Common::String &room);
+
+	void addFile(const Common::String &room, uint32 index, byte face, Archive::ResourceType type,
+	             const MetadataArray &metadata, const Common::String &filename, bool compress);
+	void write(Common::SeekableWriteStream &outStream);
+
+	bool empty() const { return _directory.empty(); }
+
+private:
+	struct DirectorySubEntry {
+		uint32 offset;
+		uint32 size;
+		byte face;
+		Archive::ResourceType type;
+		MetadataArray metadata;
+		Common::String filename;
+		bool compress;
+
+		DirectorySubEntry() : offset(0), size(0), face(0), type(Archive::kCubeFace), compress(false) {}
+	};
+
+	struct DirectoryEntry {
+		Common::String roomName;
+		uint32 index;
+		Common::Array<DirectorySubEntry> subentries;
+
+		DirectoryEntry() : index(0) {}
+	};
+
+	DirectoryEntry *getEntry(const Common::String &room, uint32 index);
+	void writeDirectory(Common::SeekableWriteStream &outStream);
+	void writeFiles(Common::SeekableWriteStream &outStream);
+	void encryptHeader(uint32 *header, uint32 length);
+
+	Common::String _room;
+	Common::Array<DirectoryEntry> _directory;
+};
+
 
 } // End of namespace Myst3
 

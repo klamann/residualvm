@@ -73,7 +73,7 @@ bool Effect::loadMasks(const Common::String &room, uint32 id, Archive::ResourceT
 		ResourceDescription desc = _vm->getFileDescription(room, id, i + 1, type);
 
 		if (desc.isValid()) {
-			Common::SeekableReadStream *data = desc.getData();
+			Common::SeekableReadStream *data = desc.createReadStream();
 
 			// Check if we are overriding an existing mask
 			delete _facesMasks[i];
@@ -472,7 +472,7 @@ bool MagnetEffect::update() {
 			error("Magnet effect support file %d does not exist", _vm->_state->getMagnetEffectNode());
 
 		delete _shakeStrength;
-		_shakeStrength = desc.getData();
+		_shakeStrength = desc.createReadStream();
 	}
 
 	int32 soundPosition = _vm->_sound->playedFrames(soundId);
@@ -663,7 +663,7 @@ bool ShieldEffect::loadPattern() {
 		return false;
 	}
 
-	Common::SeekableReadStream *stream = desc.getData();
+	Common::SeekableReadStream *stream = desc.createReadStream();
 	if (stream->size() != 4096) {
 		error("Incorrect shield effect support file size %d", stream->size());
 	}

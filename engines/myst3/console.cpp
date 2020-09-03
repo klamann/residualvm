@@ -29,6 +29,8 @@
 #include "engines/myst3/script.h"
 #include "engines/myst3/state.h"
 
+#include "common/file.h"
+
 namespace Myst3 {
 
 Console::Console(Myst3Engine *vm) : GUI::Debugger(), _vm(vm) {
@@ -301,7 +303,7 @@ bool Console::Cmd_Extract(int argc, const char **argv) {
 		return true;
 	}
 
-	Common::SeekableReadStream *s = desc.getData();
+	Common::SeekableReadStream *s = desc.createReadStream();
 	Common::String filename = Common::String::format("node%s_%d_face%d.%d", room.c_str(), id, face, type);
 	Common::DumpFile f;
 	f.open(filename);
@@ -330,21 +332,14 @@ bool Console::Cmd_FillInventory(int argc, const char **argv) {
 class DumpingArchiveVisitor : public ArchiveVisitor {
 public:
 	DumpingArchiveVisitor() :
-			_archive(nullptr),
-			_currentDirectoryEntry(nullptr) {
+			_archive(nullptr) {
 	}
 
 	void visitArchive(Archive &archive) override {
 		_archive = &archive;
 	}
 
-	void visitDirectoryEntry(Archive::DirectoryEntry &directoryEntry) override {
-		_currentDirectoryEntry = &directoryEntry;
-	}
-
-	void visitDirectorySubEntry(Archive::DirectorySubEntry &directorySubEntry) override {
-		assert(_currentDirectoryEntry);
-
+	void visitDirectorySubEntry(Archive::DirectoryEntry &directoryEntry, Archive::DirectorySubEntry &directorySubEntry) override {
 		Common::String fileName;
 		switch (directorySubEntry.type) {
 		case Archive::kNumMetadata:
@@ -354,19 +349,19 @@ public:
 		case Archive::kSpotItem:
 		case Archive::kLocalizedSpotItem:
 		case Archive::kFrame:
-			fileName = Common::String::format("dump/%s-%d-%d.jpg", _currentDirectoryEntry->roomName.c_str(), _currentDirectoryEntry->index, directorySubEntry.face);
+			fileName = Common::String::format("dump/%s-%d-%d.jpg", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face);
 			break;
 		case Archive::kWaterEffectMask:
-			fileName = Common::String::format("dump/%s-%d-%d.mask", _currentDirectoryEntry->roomName.c_str(), _currentDirectoryEntry->index, directorySubEntry.face);
+			fileName = Common::String::format("dump/%s-%d-%d.mask", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face);
 			break;
 		case Archive::kMovie:
 		case Archive::kStillMovie:
 		case Archive::kDialogMovie:
 		case Archive::kMultitrackMovie:
-			fileName = Common::String::format("dump/%s-%d.bik", _currentDirectoryEntry->roomName.c_str(), _currentDirectoryEntry->index);
+			fileName = Common::String::format("dump/%s-%d.bik", directoryEntry.roomName.c_str(), directoryEntry.index);
 			break;
 		default:
-			fileName = Common::String::format("dump/%s-%d-%d.%d", _currentDirectoryEntry->roomName.c_str(), _currentDirectoryEntry->index, directorySubEntry.face, directorySubEntry.type);
+			fileName = Common::String::format("dump/%s-%d-%d.%d", directoryEntry.roomName.c_str(), directoryEntry.index, directorySubEntry.face, directorySubEntry.type);
 			break;
 		}
 
@@ -382,7 +377,6 @@ public:
 
 private:
 	Archive *_archive;
-	const Archive::DirectoryEntry *_currentDirectoryEntry;
 };
 
 bool Console::Cmd_DumpArchive(int argc, const char **argv) {
@@ -404,16 +398,16 @@ bool Console::Cmd_DumpArchive(int argc, const char **argv) {
 		temp.toUppercase();
 	}
 
-	Archive archive;
-	if (!archive.open(argv[1], multiRoom ? nullptr : temp.c_str())) {
+	Archive *archive = Archive::createFromFile(argv[1], multiRoom ? "" : temp);
+	if (!archive) {
 		debugPrintf("Can't open archive with name '%s'\n", argv[1]);
 		return true;
 	}
 
 	DumpingArchiveVisitor dumper;
-	archive.visit(dumper);
+	archive->visit(dumper);
 
-	archive.close();
+	delete archive;
 
 	return true;
 }
@@ -461,7 +455,7 @@ bool Console::dumpFaceMask(uint16 index, int face, Archive::ResourceType type) {
 	if (!maskDesc.isValid())
 		return false;
 
-	Common::SeekableReadStream *maskStream = maskDesc.getData();
+	Common::SeekableReadStream *maskStream = maskDesc.createReadStream();
 
 	Effect::FaceMask *mask = Effect::loadMask(maskStream);
 

@@ -169,7 +169,6 @@ Common::Error Myst3Engine::run() {
 	} else {
 		_menu = new PagingMenu(this);
 	}
-	_archiveNode = new Archive();
 
 	_system->showMouse(false);
 
@@ -219,7 +218,6 @@ Common::Error Myst3Engine::run() {
 	tryAutoSaving(); //Attempt to autosave before exiting
 	unloadNode();
 
-	_archiveNode->close();
 	_gfx->freeFont();
 
 	// Make sure the mouse is unlocked
@@ -229,18 +227,17 @@ Common::Error Myst3Engine::run() {
 }
 
 bool Myst3Engine::addArchive(const Common::String &file, bool mandatory) {
-	Archive *archive = new Archive();
-	bool opened = archive->open(file.c_str(), 0);
-
-	if (opened) {
-		_archivesCommon.push_back(archive);
-	} else {
-		delete archive;
-		if (mandatory)
+	Archive *archive = Archive::createFromFile(file, "");
+	if (!archive) {
+		if (mandatory) {
 			error("Unable to open archive %s", file.c_str());
+		}
+
+		return false;
 	}
 
-	return opened;
+	_archivesCommon.push_back(archive);
+	return true;
 }
 
 void Myst3Engine::openArchives() {
@@ -865,11 +862,12 @@ void Myst3Engine::loadNode(uint16 nodeID, uint32 roomID, uint32 ageID) {
 
 	Common::String newRoomName = _db->getRoomName(roomID, ageID);
 	if ((!_archiveNode || _archiveNode->getRoomName() != newRoomName) && !_db->isCommonRoom(roomID, ageID)) {
+		delete _archiveNode;
+		_archiveNode = nullptr;
 
 		Common::String nodeFile = Common::String::format("%snodes.m3a", newRoomName.c_str());
-
-		_archiveNode->close();
-		if (!_archiveNode->open(nodeFile.c_str(), newRoomName.c_str())) {
+		_archiveNode = Archive::createFromFile(nodeFile, newRoomName);
+		if (!_archiveNode) {
 			error("Unable to open archive %s", nodeFile.c_str());
 		}
 	}
@@ -1353,21 +1351,24 @@ ResourceDescription Myst3Engine::getFileDescription(const Common::String &room, 
 	return desc;
 }
 
-ResourceDescriptionArray Myst3Engine::listFilesMatching(const Common::String &room, uint32 index, uint16 face,
-                                                     Archive::ResourceType type) {
+ResourceDescriptionArray Myst3Engine::listFilesMatching(const Common::String &room, uint32 index, Archive::ResourceType type) {
 	Common::String archiveRoom = room;
 	if (archiveRoom == "") {
 		archiveRoom = _db->getRoomName(_state->getLocationRoom(), _state->getLocationAge());
 	}
 
 	for (uint i = 0; i < _archivesCommon.size(); i++) {
-		ResourceDescriptionArray list = _archivesCommon[i]->listFilesMatching(archiveRoom, index, face, type);
+		ResourceDescriptionArray list = _archivesCommon[i]->listFilesMatching(archiveRoom, index, type);
 		if (!list.empty()) {
 			return list;
 		}
 	}
 
-	return _archiveNode->listFilesMatching(archiveRoom, index, face, type);
+	if (!_archiveNode) {
+		return ResourceDescriptionArray();
+	}
+
+	return _archiveNode->listFilesMatching(archiveRoom, index, type);
 }
 
 Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
@@ -1376,7 +1377,7 @@ Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
 	if (!desc.isValid())
 		error("Texture %d does not exist", id);
 
-	Common::SeekableReadStream *data = desc.getData();
+	Common::SeekableReadStream *data = desc.createReadStream();
 
 	uint32 magic = data->readUint32LE();
 	if (magic != MKTAG('.', 'T', 'E', 'X'))
@@ -1406,7 +1407,7 @@ Graphics::Surface *Myst3Engine::loadTexture(uint16 id) {
 }
 
 Graphics::Surface *Myst3Engine::decodeJpeg(const ResourceDescription *jpegDesc) {
-	Common::SeekableReadStream *jpegStream = jpegDesc->getData();
+	Common::SeekableReadStream *jpegStream = jpegDesc->createReadStream();
 
 	Image::JPEGDecoder jpeg;
 	jpeg.setOutputPixelFormat(Texture::getRGBAPixelFormat());
@@ -1722,9 +1723,9 @@ void Myst3Engine::getMovieLookAt(uint16 id, bool start, float &pitch, float &hea
 
 	Math::Vector3d v;
 	if (start)
-		v = desc.getVideoData().v1;
+		v = desc.videoData().v1;
 	else
-		v = desc.getVideoData().v2;
+		v = desc.videoData().v2;
 
 	Math::Vector2d horizontalProjection(v.x(), v.z());
 	horizontalProjection.normalize();

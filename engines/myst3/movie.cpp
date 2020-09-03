@@ -73,15 +73,15 @@ Movie::Movie(Myst3Engine *vm, uint16 id) :
 			return;
 	}
 
-	loadPosition(binkDesc.getVideoData());
+	loadPosition(binkDesc.videoData());
 
-	Common::SeekableReadStream *binkStream = binkDesc.getData();
+	Common::SeekableReadStream *binkStream = binkDesc.createReadStream();
 	_bink.setDefaultHighColorFormat(Texture::getRGBAPixelFormat());
 	_bink.setSoundType(Audio::Mixer::kSFXSoundType);
 	_bink.loadStream(binkStream);
 
-	if (binkDesc.getType() == Archive::kMultitrackMovie
-			|| binkDesc.getType() == Archive::kDialogMovie) {
+	if (binkDesc.type() == Archive::kMultitrackMovie
+			|| binkDesc.type() == Archive::kDialogMovie) {
 		uint language = ConfMan.getInt("audio_language");
 		_bink.setAudioTrack(language);
 	}

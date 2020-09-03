@@ -22,11 +22,37 @@
 
 #include "engines/myst3/archive.h"
 
+#include "common/archive.h"
 #include "common/debug.h"
+#include "common/fs.h"
 #include "common/memstream.h"
 #include "common/substream.h"
 
+#include "engines/myst3/lzo.h"
+
 namespace Myst3 {
+
+static const uint32 kLZO1X = MKTAG('L', 'Z', 'O', 'X');
+
+Archive::Archive(Common::SeekableReadStream *file, const Common::String &roomName) :
+		_roomName(roomName),
+		_file(file) {
+	assert(file);
+	readDirectory();
+}
+
+Archive::~Archive() {
+	delete _file;
+}
+
+Archive *Archive::createFromFile(const Common::String &filename, const Common::String &roomName) {
+	Common::SeekableReadStream *file = SearchMan.createReadStreamForMember(filename);
+	if (!file) {
+		return nullptr;
+	}
+
+	return new Archive(file, roomName);
+}
 
 void Archive::decryptHeader(Common::SeekableReadStream &inStream, Common::WriteStream &outStream) {
 	static const uint32 addKey = 0x3C6EF35F;
@@ -71,6 +97,11 @@ static uint32 readUint24(Common::ReadStream &stream) {
 	return value;
 }
 
+static void writeUint24(Common::WriteStream &stream, uint32 value) {
+	stream.writeUint16LE(value & 0xFFFF);
+	stream.writeByte(value >> 16);
+}
+
 Archive::DirectorySubEntry Archive::readSubEntry(Common::ReadStream &stream) {
 	DirectorySubEntry subEntry;
 
@@ -109,10 +140,10 @@ Archive::DirectoryEntry Archive::readEntry(Common::ReadStream &stream) {
 
 void Archive::readDirectory() {
 	Common::MemoryWriteStreamDynamic buf(DisposeAfterUse::YES);
-	decryptHeader(_file, buf);
+	decryptHeader(*_file, buf);
 
 	Common::MemoryReadStream directory(buf.getData(), buf.size());
-	_directorySize = directory.readUint32LE();
+	/* uint32 directorySize = */ directory.readUint32LE();
 
 	while (directory.pos() + 4 < directory.size()) {
 		_directory.push_back(readEntry(directory));
@@ -126,18 +157,39 @@ void Archive::visit(ArchiveVisitor &visitor) {
 		visitor.visitDirectoryEntry(_directory[i]);
 
 		for (uint j = 0; j < _directory[i].subentries.size(); j++) {
-			visitor.visitDirectorySubEntry(_directory[i].subentries[j]);
+			visitor.visitDirectorySubEntry(_directory[i], _directory[i].subentries[j]);
 		}
 	}
 }
 
 Common::SeekableReadStream *Archive::dumpToMemory(uint32 offset, uint32 size) {
-	_file.seek(offset);
-	return _file.readStream(size);
+	_file->seek(offset);
+
+	byte *data = (byte *)malloc(size);
+	_file->read(data, size);
+
+	uint32 signature = READ_LE_UINT32(data);
+	if (signature == kLZO1X) {
+		uint32 uncompressedSize = READ_LE_UINT32(data + 4);
+		byte *uncompressed = (byte *)malloc(uncompressedSize);
+
+		size_t uncompressedWritten = 0;
+		LzoResult decompressResult = lzoDecompress(data + 8, size - 8, uncompressed, uncompressedSize, uncompressedWritten);
+		if (decompressResult != LzoResult::Success) {
+			error("Unable to decompress at offset %d", offset);
+		}
+
+		assert(uncompressedWritten == uncompressedSize);
+
+		free(data);
+		return new Common::MemoryReadStream(uncompressed, uncompressedSize, DisposeAfterUse::YES);
+	}
+
+	return new Common::MemoryReadStream(data, size, DisposeAfterUse::YES);
 }
 
 uint32 Archive::copyTo(uint32 offset, uint32 size, Common::WriteStream &out) {
-	Common::SeekableSubReadStream subStream(&_file, offset, offset + size);
+	Common::SeekableSubReadStream subStream(_file, offset, offset + size);
 	subStream.seek(0);
 	return out.writeStream(&subStream);
 }
@@ -163,15 +215,14 @@ ResourceDescription Archive::getDescription(const Common::String &room, uint32 i
 	for (uint i = 0; i < entry->subentries.size(); i++) {
 		const DirectorySubEntry &subentry = entry->subentries[i];
 		if (subentry.face == face && subentry.type == type) {
-			return ResourceDescription(this, subentry);
+			return ResourceDescription(this, *entry, subentry);
 		}
 	}
 
 	return ResourceDescription();
 }
 
-ResourceDescriptionArray Archive::listFilesMatching(const Common::String &room, uint32 index, uint16 face,
-                                                 ResourceType type) {
+ResourceDescriptionArray Archive::listFilesMatching(const Common::String &room, uint32 index, ResourceType type) {
 	const DirectoryEntry *entry = getEntry(room, index);
 	if (!entry) {
 		return ResourceDescriptionArray();
@@ -180,52 +231,33 @@ ResourceDescriptionArray Archive::listFilesMatching(const Common::String &room, 
 	ResourceDescriptionArray list;
 	for (uint i = 0; i < entry->subentries.size(); i++) {
 		const DirectorySubEntry &subentry = entry->subentries[i];
-		if (subentry.face == face && subentry.type == type) {
-			list.push_back(ResourceDescription(this, subentry));
+		if (subentry.type == type) {
+			list.push_back(ResourceDescription(this, *entry, subentry));
 		}
 	}
 
 	return list;
 }
 
-bool Archive::open(const char *fileName, const char *room) {
-	// If the room name is not provided, it is assumed that
-	// we are opening a multi-room archive
-	if (room) {
-		_roomName = room;
-	}
-
-	if (_file.open(fileName)) {
-		readDirectory();
-		return true;
-	}
-	
-	return false;
-}
-
-void Archive::close() {
-	_directorySize = 0;
-	_roomName.clear();
-	_directory.clear();
-	_file.close();
-}
-
 ResourceDescription::ResourceDescription() :
 		_archive(nullptr),
+		_entry(nullptr),
 		_subentry(nullptr) {
 }
 
-ResourceDescription::ResourceDescription(Archive *archive, const Archive::DirectorySubEntry &subentry) :
+ResourceDescription::ResourceDescription(Archive *archive, const Archive::DirectoryEntry &entry, const Archive::DirectorySubEntry &subentry) :
 		_archive(archive),
+		_entry(&entry),
 		_subentry(&subentry) {
 }
 
-Common::SeekableReadStream *ResourceDescription::getData() const {
+Common::SeekableReadStream *ResourceDescription::createReadStream() const {
 	return _archive->dumpToMemory(_subentry->offset, _subentry->size);
 }
 
-ResourceDescription::SpotItemData ResourceDescription::getSpotItemData() const {
-	assert(_subentry->type == Archive::kSpotItem || _subentry->type == Archive::kLocalizedSpotItem);
+ResourceDescription::SpotItemData ResourceDescription::spotItemData() const {
+	assert(_subentry->type == Archive::kSpotItem
+	       || _subentry->type == Archive::kLocalizedSpotItem);
 
 	SpotItemData spotItemData;
 	spotItemData.u = _subentry->metadata[0];
@@ -234,7 +266,7 @@ ResourceDescription::SpotItemData ResourceDescription::getSpotItemData() const {
 	return spotItemData;
 }
 
-ResourceDescription::VideoData ResourceDescription::getVideoData() const {
+ResourceDescription::VideoData ResourceDescription::videoData() const {
 	VideoData videoData;
 
 	if (_subentry->type == Archive::kMovie || _subentry->type == Archive::kMultitrackMovie) {
@@ -255,7 +287,7 @@ ResourceDescription::VideoData ResourceDescription::getVideoData() const {
 	return videoData;
 }
 
-uint32 ResourceDescription::getMiscData(uint index) const {
+uint32 ResourceDescription::miscData(uint index) const {
 	assert(_subentry->type == Archive::kNumMetadata || _subentry->type == Archive::kTextMetadata);
 
 	if (index == 0) {
@@ -267,7 +299,7 @@ uint32 ResourceDescription::getMiscData(uint index) const {
 	}
 }
 
-Common::String ResourceDescription::getTextData(uint index) const {
+Common::String ResourceDescription::textData(uint index) const {
 	assert(_subentry->type == Archive::kTextMetadata);
 
 	uint8 key = 35;
@@ -278,7 +310,7 @@ Common::String ResourceDescription::getTextData(uint index) const {
 	uint8 *out = &decrypted[0];
 	while (cnt / 4 < (_subentry->metadata.size() + 2) && cnt < 89) {
 		// XORed text stored in little endian 32 bit words
-		*out++ = (getMiscData(cnt / 4) >> (8 * (3 - (cnt % 4)))) ^ key++;
+		*out++ = (miscData(cnt / 4) >> (8 * (3 - (cnt % 4)))) ^ key++;
 		cnt++;
 	}
 
@@ -301,6 +333,186 @@ Common::String ResourceDescription::getTextData(uint index) const {
 }
 
 ArchiveVisitor::~ArchiveVisitor() {
+}
+
+ArchiveWriter::ArchiveWriter(const Common::String &room) :
+		_room(room) {
+}
+
+void ArchiveWriter::addFile(const Common::String &room, uint32 index, byte face, Archive::ResourceType type,
+                            const MetadataArray &metadata, const Common::String &filename, bool compress) {
+	if (!_room.empty()) {
+		assert(room == _room);
+	}
+
+	DirectoryEntry *entry = getEntry(room, index);
+	if (!entry) {
+		DirectoryEntry newEntry;
+		newEntry.roomName = room;
+		newEntry.index    = index;
+
+		_directory.push_back(newEntry);
+
+		entry = &_directory.back();
+	}
+
+	DirectorySubEntry newSubEntry;
+	newSubEntry.face     = face;
+	newSubEntry.type     = type;
+	newSubEntry.filename = filename;
+	newSubEntry.compress = compress;
+
+	if (type == Archive::kNumMetadata || type == Archive::kTextMetadata) {
+		assert(filename.empty());
+		assert(!metadata.empty());
+
+		newSubEntry.offset = metadata[0];
+		if (metadata.size() >= 2) {
+			newSubEntry.size = metadata[1];
+		}
+		if (metadata.size() >= 3) {
+			newSubEntry.metadata = MetadataArray(&metadata[2], metadata.size() - 2);
+		}
+	} else {
+		assert(!filename.empty());
+		newSubEntry.metadata = metadata;
+	}
+
+	entry->subentries.push_back(newSubEntry);
+}
+
+void ArchiveWriter::write(Common::SeekableWriteStream &outStream) {
+	// Compute the size of the directory
+	Common::MemoryWriteStreamDynamic directorySizingTempBuffer(DisposeAfterUse::YES);
+	writeDirectory(directorySizingTempBuffer);
+
+	uint32 directoryBufferSize = sizeof(uint32);                // directorySize
+	directoryBufferSize += directorySizingTempBuffer.size();    // directory
+	directoryBufferSize += sizeof(uint32);                      // checksum
+
+	// Write the data files to the output stream,
+	//  saving the offsets to the in-memory directory along the way
+	outStream.seek(directoryBufferSize);
+	writeFiles(outStream);
+
+	// Write the directory to a temporary buffer
+	byte *directoryBuffer = new byte[directoryBufferSize];
+	memset(directoryBuffer, 0, directoryBufferSize);
+
+	Common::SeekableMemoryWriteStream directoryStream(directoryBuffer, directoryBufferSize);
+	directoryStream.writeUint32LE(directoryBufferSize / 4);
+	writeDirectory(directoryStream);
+
+	// Encrypt the directory
+	encryptHeader((uint32 *)directoryBuffer, directoryBufferSize / 4);
+
+	// Write the directory to the output file
+	outStream.seek(0);
+	outStream.write(directoryBuffer, directoryBufferSize);
+}
+
+ArchiveWriter::DirectoryEntry *ArchiveWriter::getEntry(const Common::String &room, uint32 index) {
+	for (uint i = 0; i < _directory.size(); i++) {
+		DirectoryEntry &entry = _directory[i];
+		if (entry.index == index && entry.roomName == room) {
+			return &entry;
+		}
+	}
+
+	return nullptr;
+}
+
+void ArchiveWriter::writeDirectory(Common::SeekableWriteStream &outStream) {
+	for (uint entryIndex = 0; entryIndex < _directory.size(); entryIndex++) {
+		DirectoryEntry &entry = _directory[entryIndex];
+		if (_room.empty()) {
+			outStream.writeString(entry.roomName);
+		}
+
+		writeUint24(outStream, entry.index);
+		outStream.writeByte(entry.subentries.size());
+
+		for (uint subentryIndex = 0; subentryIndex < entry.subentries.size(); subentryIndex++) {
+			const DirectorySubEntry &directorySubEntry = entry.subentries[subentryIndex];
+
+			outStream.writeUint32LE(directorySubEntry.offset);
+			outStream.writeUint32LE(directorySubEntry.size);
+			outStream.writeUint16LE(directorySubEntry.metadata.size());
+			outStream.writeByte(directorySubEntry.face);
+			outStream.writeByte(directorySubEntry.type);
+
+			for (uint i = 0; i < directorySubEntry.metadata.size(); i++) {
+				outStream.writeUint32LE(directorySubEntry.metadata[i]);
+			}
+		}
+	}
+}
+
+void ArchiveWriter::writeFiles(Common::SeekableWriteStream &outStream) {
+	for (uint entryIndex = 0; entryIndex < _directory.size(); entryIndex++) {
+		DirectoryEntry &entry = _directory[entryIndex];
+		for (uint subentryIndex = 0; subentryIndex < entry.subentries.size(); subentryIndex++) {
+			DirectorySubEntry &directorySubEntry = entry.subentries[subentryIndex];
+			if (directorySubEntry.filename.empty()) continue;
+
+			Common::FSNode fileToInclude = Common::FSNode(directorySubEntry.filename);
+			Common::SeekableReadStream *readStream = fileToInclude.createReadStream();
+			if (!readStream) {
+				error("Unable to open file '%s'", directorySubEntry.filename.c_str());
+			}
+
+			if (directorySubEntry.compress) {
+				uint uncompressedSize = readStream->size();
+				byte *uncompressed = new byte[uncompressedSize];
+				readStream->read(uncompressed, uncompressedSize);
+
+				uint compressBufferSize = lzoCompressWorstSize(uncompressedSize);
+				byte *compressed = new byte[compressBufferSize];
+
+				size_t compressedSize = 0;
+				LzoResult compressResult = lzoCompress(uncompressed, uncompressedSize, compressed, compressBufferSize, compressedSize);
+				if (compressResult != LzoResult::Success) {
+					error("Unable to LZO compress '%s'", directorySubEntry.filename.c_str());
+				}
+
+				delete[] uncompressed;
+
+				directorySubEntry.offset = outStream.pos();
+
+				outStream.writeUint32LE(kLZO1X);
+				outStream.writeUint32LE(uncompressedSize);
+				uint32 written = outStream.write(compressed, compressedSize);
+				assert(written == (uint32)compressedSize);
+
+				delete[] compressed;
+			} else {
+				uint32 written = outStream.writeStream(readStream);
+				assert(written == (uint32)readStream->size());
+			}
+
+			directorySubEntry.size = outStream.pos() - directorySubEntry.offset;
+
+			delete readStream;
+		}
+	}
+}
+
+void ArchiveWriter::encryptHeader(uint32 *header, uint32 length) {
+	static const uint32 addKey  = 0x3C6EF35F;
+	static const uint32 multKey = 0x0019660D;
+
+	uint32 checksum   = 0;
+	uint32 currentKey = 0;
+	for (uint i = 0; i < length - 1; i++) {
+		checksum   += header[i];
+
+		currentKey *= multKey;
+		currentKey += addKey;
+
+		header[i]  ^= currentKey;
+	}
+
+	header[length - 1] = checksum ^ currentKey;
 }
 
 } // End of namespace Myst3

@@ -87,7 +87,7 @@ void Cursor::loadAvailableCursors() {
 		if (!cursorDesc.isValid())
 			error("Cursor %d does not exist", availableCursors[i].nodeID);
 
-		Common::SeekableReadStream *bmpStream = cursorDesc.getData();
+		Common::SeekableReadStream *bmpStream = cursorDesc.createReadStream();
 
 		Image::BitmapDecoder bitmapDecoder;
 		if (!bitmapDecoder.loadStream(*bmpStream))
