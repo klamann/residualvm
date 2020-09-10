@@ -16,6 +16,7 @@ MODULE_OBJS := \
 	gfx_tinygl_texture.o \
 	hotspot.o \
 	inventory.o \
+	lzo.o \
 	menu.o \
 	movie.o \
 	myst3.o \
