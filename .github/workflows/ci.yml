@@ -59,3 +59,14 @@ jobs:
           cd build-residualvm
           ls
           msbuild residualvm.sln /m /p:BuildInParallel=true /p:Configuration=Release /p:PreferredToolArchitecture=x64 /p:Platform=${{ matrix.platform }}
+          ls Release${{ matrix.arch }}
+      - name: Upload residualvm release
+        uses: actions/upload-artifact@v2
+        with:
+          name: residualvm-${{ matrix.arch }}
+          path: build-residualvm/Release${{ matrix.arch }}/*.exe
+      - name: Upload residualvm libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: residualvm-${{ matrix.arch }}
+          path: ${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_ROOT_OUT }}\\installed\\${{ matrix.triplet }}\\bin\\*.dll
