@@ -11,12 +11,12 @@ jobs:
           - platform: win32
             triplet: x86-windows
             arch: x86
-            vcpkgPackages: 'curl discord-rpc faad2 fluidsynth freetype glew libflac libjpeg-turbo libmad libmpeg2 libogg libpng libtheora libvorbis sdl2 sdl2-net zlib'
+            vcpkgPackages: 'curl faad2 fluidsynth freetype glew libflac libjpeg-turbo libmad libmpeg2 libogg libpng libtheora libvorbis sdl2 sdl2-net zlib-dev'
             useNasm: 'true'
           - platform: x64
             arch: x64
             triplet: x64-windows
-            vcpkgPackages: 'curl discord-rpc faad2 fluidsynth freetype glew libflac libjpeg-turbo libmad libmpeg2 libogg libpng libtheora libvorbis sdl2 sdl2-net zlib'
+            vcpkgPackages: 'curl faad2 fluidsynth freetype glew libflac libjpeg-turbo libmad libmpeg2 libogg libpng libtheora libvorbis sdl2 sdl2-net zlib-dev'
     env:
       CONFIGURATION: Release
       PLATFORM: ${{ matrix.platform }}
