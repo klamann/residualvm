@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir build-residualvm
           cd build-residualvm
-          ../devtools/create_project/cmake/Debug/create_project.exe .. --msvc --enable-all-engines ${{ matrix.configflags }} --use-canonical-lib-names
+          ../devtools/create_project/cmake/Debug/create_project.exe .. --msvc --enable-all-engines ${{ matrix.configflags }}
           ls
       - name: set RESIDUALVM_LIBS env variable
         run: |
