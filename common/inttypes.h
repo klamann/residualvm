@@ -37,10 +37,6 @@
 	typedef signed short int16_t;
 	typedef unsigned char uint8_t;
 	typedef unsigned short uint16_t;
-	#if !defined(SDL_COMPILEDVERSION) || (SDL_COMPILEDVERSION < 1210)
-	typedef signed long int32_t;
-	typedef unsigned long uint32_t;
-	#endif
 #else
 #	include <inttypes.h>
 #endif
